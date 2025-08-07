@@ -46,13 +46,16 @@ export interface Feedback {
   updatedAt: Date;
 }
 
-interface Table {
-  tableId: string;
-  tableName: string;
+interface TableData {
+  tableId?: string;
+  id?: string;
+  _id?: string;
+  name?: string;
   tableNumber?: string;
-  name: string;
-  id: string;
-  _id: string;
+}
+
+interface TablesResponse {
+  tables?: TableData[];
 }
 
 export default function FeedbacksPage() {
@@ -74,21 +77,22 @@ export default function FeedbacksPage() {
         else if (feedbacksData && typeof feedbacksData === 'object' && Array.isArray((feedbacksData as { feedbacks?: unknown[] }).feedbacks)) feedbacksArr = (feedbacksData as { feedbacks: unknown[] }).feedbacks;
         else if (feedbacksData && typeof feedbacksData === 'object' && Array.isArray((feedbacksData as { data?: unknown[] }).data)) feedbacksArr = (feedbacksData as { data: unknown[] }).data;
         
-        const tablesData = await managerTableService.getAllTables();        const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData as { tables?: Table[] })?.tables || [];
+        const tablesData = await managerTableService.getAllTables();
+        const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData as TablesResponse)?.tables || [];
 
         const mappedFeedbacks: Feedback[] = feedbacksArr.map(f => {
           const obj = f as Partial<Feedback>;
           const tableId = obj.tableId || '';
           
-          let table = tablesArray.find((t: Table) => {
-            const tId = (t as Table)?.tableId || (t as Table)?.id || (t as Table)?._id;
+          let table = tablesArray.find((t: TableData) => {
+            const tId = t.tableId || t.id || t._id;
             return tId === tableId;
           });
           
           if (!table && tableId) {
-            table = tablesArray.find((t: Table) => {
-              const tId = (t as Table)?.tableId || (t as Table)?.id || (t as Table)?._id;
-              return tId && tId.includes(tableId) || tableId.includes(tId);
+            table = tablesArray.find((t: TableData) => {
+              const tId = t.tableId || t.id || t._id;
+              return tId && (tId.includes(tableId) || tableId.includes(tId));
             });
           }
           
@@ -127,7 +131,6 @@ export default function FeedbacksPage() {
     }
   }, [isChecking]);
 
-  // Theo dõi scroll để thay đổi viền header
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.scrollY;

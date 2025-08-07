@@ -27,15 +27,7 @@ export interface TableAdmin {
   status: 'Đã duyệt' | 'Chưa duyệt' | 'Bị từ chối';
 }
 
-export default function SuperAdminHomePage() {
-  return (
-    <Suspense>
-      <SuperAdminHomePageContent />
-    </Suspense>
-  );
-}
-
-function SuperAdminHomePageContent() {
+function SuperAdminHomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') === 'feedback' ? 'feedback' : 'approval';
@@ -163,5 +155,13 @@ function SuperAdminHomePageContent() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function SuperAdminHomePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SuperAdminHomeContent />
+    </Suspense>
   );
 }
