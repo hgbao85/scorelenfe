@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import PopupEditScore from '@/app/user/popup/popupEditScore';
@@ -13,7 +13,7 @@ import { useWebSocket } from '@/lib/hooks/useWebSocket';
 import socketService from '@/lib/socketService';
 
 
-export default function ScoreboardPage() {
+function ScoreboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [scoreA, setScoreA] = useState(0);
@@ -464,4 +464,10 @@ export default function ScoreboardPage() {
   );
 }
 
-
+export default function ScreenControlPage() {
+  return (
+    <Suspense fallback={<ScoreLensLoading text="Đang tải..." />}>
+      <ScoreboardPage />
+    </Suspense>
+  );
+}
