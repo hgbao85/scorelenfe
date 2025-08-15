@@ -208,7 +208,6 @@ function StartSessionContent() {
 
       if (!res.isBrandCompatible) {
         setVerifyMemberStatus('error');
-        setVerifyMemberMessage(res.message || 'Bạn không phải là hội viên của thương hiệu này.');
         toast.error(res.message || 'Bạn không phải là hội viên của thương hiệu này.');
         return;
       }
