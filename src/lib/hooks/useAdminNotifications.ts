@@ -58,7 +58,7 @@ export const useAdminNotifications = () => {
 
     // Kết nối WebSocket
     useEffect(() => {
-        const newSocket = io('http://localhost:8000', {
+        const newSocket = io('https://scorelens-backend.onrender.com', {
             transports: ['websocket', 'polling'],
             autoConnect: true,
         });

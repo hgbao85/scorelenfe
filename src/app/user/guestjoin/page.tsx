@@ -85,7 +85,7 @@ function GuestJoinContent() {
       if (isConnecting || socketRef.current?.connected) return;
       
       isConnecting = true;
-      const socketUrl = 'http://localhost:8000';
+      const socketUrl = 'https://scorelens-backend.onrender.com';
 
       try {
         const socket = io(socketUrl, {

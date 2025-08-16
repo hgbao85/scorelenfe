@@ -80,7 +80,7 @@ function HomeRandomContent() {
     const retryDelay = 2000;
 
     const connectSocket = () => {
-      const socketUrl = 'http://localhost:8000';
+      const socketUrl = 'https://scorelens-backend.onrender.com';
 
       try {
         const socket = io(socketUrl, {

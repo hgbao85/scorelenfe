@@ -9,7 +9,7 @@ class SocketService {
       return this.socket;
     }
 
-    this.socket = io('http://localhost:8000', {
+    this.socket = io('https://scorelens-backend.onrender.com', {
       transports: ['websocket', 'polling'],
       autoConnect: true,
     });
