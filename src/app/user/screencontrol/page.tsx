@@ -3,10 +3,10 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import ScoreEditor from '@/components/user/ScoreEditor';
-import MatchEnd from '@/components/user/MatchEnd';
-import EditOption from '@/components/user/EditOption';
-import TeamMembers from '@/components/user/TeamMembers';
+import PopupEditScore from '@/app/user/popup/popupEditScore';
+import PopupEndMatch from '@/app/user/popup/popupEndMatch';
+import PopupEditChoice from '@/app/user/popup/popupEditChoice';
+import PopupEditMembers from '@/app/user/popup/popupEditMembers';
 import { ScoreLensLoading } from '@/components/ui/ScoreLensLoading';
 import HeaderUser from '@/components/user/HeaderUser';
 import { userMatchService } from '@/lib/userMatchService';
@@ -31,31 +31,13 @@ function ScoreboardPage() {
   const [matchCode, setMatchCode] = useState<string | null>(null);
   const [actorGuestToken, setActorGuestToken] = useState<string | null>(null);
   const [tableId, setTableId] = useState<string | null>(null);
-
-  const [matchInfo, setMatchInfo] = useState<{
-    status?: 'pending' | 'ongoing' | 'completed';
-    tableId?: string;
-    isAiAssisted?: boolean;
-    createdByMembershipId?: string;
-    creatorGuestToken?: string;
-    teams?: Array<{
-      score?: number;
-      members?: Array<{
-        guestName?: string;
-        membershipName?: string;
-        fullName?: string;
-      }>;
-    }>;
-  } | null>(null);
-  const [tableInfo, setTableInfo] = useState<{
-    name?: string;
-    category?: string;
-    clubId?: string;
-  } | null>(null);
+  
+  const [matchInfo, setMatchInfo] = useState<any>(null);
+  const [tableInfo, setTableInfo] = useState<any>(null);
   const [teamA, setTeamA] = useState<string[]>([]);
   const [teamB, setTeamB] = useState<string[]>([]);
 
-  const [aiResults] = useState<string[]>([]);
+  const [aiResults, setAiResults] = useState<string[]>([]);
   const [matchStartTime, setMatchStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
 
@@ -65,86 +47,65 @@ function ScoreboardPage() {
     onTimeUpdate: (elapsedTime: string) => {
       setElapsedTime(elapsedTime);
     },
-    onMatchUpdate: (updatedMatch: unknown) => {
-      const matchData = updatedMatch as {
-        createdByMembershipId?: string;
-        creatorGuestToken?: string;
-        teams?: Array<{
-          score?: number;
-          members?: Array<{
-            guestName?: string;
-            membershipName?: string;
-            fullName?: string;
-          }>;
-        }>;
-      };
+    onMatchUpdate: (updatedMatch: any) => {
+      const matchData = updatedMatch as any;
 
-
+      
       if (matchData?.teams) {
         const newScoreA = matchData.teams[0]?.score ?? scoreA;
         const newScoreB = matchData.teams[1]?.score ?? scoreB;
-
+        
         if (newScoreA !== scoreA) {
           setScoreA(newScoreA);
         }
         if (newScoreB !== scoreB) {
           setScoreB(newScoreB);
         }
-
+        
         if (matchData.teams[0]?.members) {
-          const teamAMembers = matchData.teams[0].members.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+          const teamAMembers = matchData.teams[0].members.map((member: any) => 
             member.guestName || member.membershipName || member.fullName || ''
           );
           setTeamA(teamAMembers);
         }
-
+        
         if (matchData.teams[1]?.members) {
-          const teamBMembers = matchData.teams[1].members.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+          const teamBMembers = matchData.teams[1].members.map((member: any) => 
             member.guestName || member.membershipName || member.fullName || ''
           );
           setTeamB(teamBMembers);
         }
-
+        
         setMatchInfo(matchData);
       }
     },
-    onMatchEnded: (matchData: unknown) => {
-      const matchInfo = matchData as {
-        matchId?: string;
-        tableName?: string;
-        matchCode?: string;
-        scoreA?: number;
-        scoreB?: number;
-        teamA?: string[];
-        teamB?: string[];
-        tableId?: string;
-      };
-      if (matchInfo && matchInfo.matchId === matchId) {
+    onMatchEnded: (matchData: any) => {
+      if (matchData && matchData.matchId === matchId) {
         toast.success('Trận đấu đã kết thúc!');
         const params = new URLSearchParams();
-        if (matchInfo.matchId) params.set('matchId', matchInfo.matchId);
-        if (matchInfo.tableName) params.set('tableName', matchInfo.tableName);
-        if (matchInfo.matchCode) params.set('matchCode', matchInfo.matchCode);
-        if (matchInfo.scoreA !== undefined) params.set('scoreA', matchInfo.scoreA.toString());
-        if (matchInfo.scoreB !== undefined) params.set('scoreB', matchInfo.scoreB.toString());
-        if (matchInfo.teamA) params.set('teamA', matchInfo.teamA.join(','));
-        if (matchInfo.teamB) params.set('teamB', matchInfo.teamB.join(','));
-        if (matchInfo.tableId) params.set('tableId', matchInfo.tableId);
-
-        router.push(`/user/match/end?${params.toString()}`);
+        if (matchData.matchId) params.set('matchId', matchData.matchId);
+        if (matchData.tableName) params.set('tableName', matchData.tableName);
+        if (matchData.matchCode) params.set('matchCode', matchData.matchCode);
+        if (matchData.scoreA !== undefined) params.set('scoreA', matchData.scoreA.toString());
+        if (matchData.scoreB !== undefined) params.set('scoreB', matchData.scoreB.toString());
+        if (matchData.teamA) params.set('teamA', matchData.teamA.join(','));
+        if (matchData.teamB) params.set('teamB', matchData.teamB.join(','));
+        if (matchData.tableId) params.set('tableId', matchData.tableId);
+        
+        router.push(`/user/endmatch?${params.toString()}`);
       }
     }
   });
 
   useEffect(() => {
     if (matchInfo?.teams) {
-      const teamAMembers = matchInfo.teams[0]?.members?.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+      const teamAMembers = matchInfo.teams[0]?.members?.map((member: any) => 
         member.guestName || member.membershipName || member.fullName || ''
       ) || [''];
-      const teamBMembers = matchInfo.teams[1]?.members?.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+      const teamBMembers = matchInfo.teams[1]?.members?.map((member: any) => 
         member.guestName || member.membershipName || member.fullName || ''
       ) || [''];
-
+      
       setTeamA(teamAMembers);
       setTeamB(teamBMembers);
     }
@@ -158,30 +119,20 @@ function ScoreboardPage() {
 
   useEffect(() => {
     if (matchId && socketService.isSocketConnected()) {
-      const handleMatchEnded = (data: unknown) => {
-        const matchData = data as {
-          matchId?: string;
-          tableName?: string;
-          matchCode?: string;
-          scoreA?: number;
-          scoreB?: number;
-          teamA?: string[];
-          teamB?: string[];
-          tableId?: string;
-        };
-        if (matchData && matchData.matchId === matchId) {
-
+      const handleMatchEnded = (data: any) => {
+        if (data && data.matchId === matchId) {
+          
           const params = new URLSearchParams();
-          if (matchData.matchId) params.set('matchId', matchData.matchId);
-          if (matchData.tableName) params.set('tableName', matchData.tableName);
-          if (matchData.matchCode) params.set('matchCode', matchData.matchCode);
-          if (matchData.scoreA !== undefined) params.set('scoreA', matchData.scoreA.toString());
-          if (matchData.scoreB !== undefined) params.set('scoreB', matchData.scoreB.toString());
-          if (matchData.teamA) params.set('teamA', matchData.teamA.join(','));
-          if (matchData.teamB) params.set('teamB', matchData.teamB.join(','));
-          if (matchData.tableId) params.set('tableId', matchData.tableId);
-
-          router.push(`/user/match/end?${params.toString()}`);
+          if (data.matchId) params.set('matchId', data.matchId);
+          if (data.tableName) params.set('tableName', data.tableName);
+          if (data.matchCode) params.set('matchCode', data.matchCode);
+          if (data.scoreA !== undefined) params.set('scoreA', data.scoreA.toString());
+          if (data.scoreB !== undefined) params.set('scoreB', data.scoreB.toString());
+          if (data.teamA) params.set('teamA', data.teamA.join(','));
+          if (data.teamB) params.set('teamB', data.teamB.join(','));
+          if (data.tableId) params.set('tableId', data.tableId);
+          
+          router.push(`/user/endmatch?${params.toString()}`);
         }
       };
 
@@ -193,8 +144,34 @@ function ScoreboardPage() {
         }
       };
     }
-  }, [matchId, router, searchParams]);
+  }, [matchId, router]);
 
+  const handleTeamChange = (team: 'A' | 'B', index: number, value: string) => {
+    const setter = team === 'A' ? setTeamA : setTeamB;
+    const current = team === 'A' ? teamA : teamB;
+    const updated = [...current];
+    updated[index] = value;
+    setter(updated);
+  };
+
+  const handleAddPlayer = (team: 'A' | 'B') => {
+    const setter = team === 'A' ? setTeamA : setTeamB;
+    const current = team === 'A' ? teamA : teamB;
+    if (current.length >= 4) {
+      toast.error('Không thể thêm quá 4 người chơi!');
+      return;
+    }
+    setter([...current, '']);
+  };
+
+  const handleRemovePlayer = (team: 'A' | 'B', index: number) => {
+    if (index === 0) return; 
+    const setter = team === 'A' ? setTeamA : setTeamB;
+    const current = team === 'A' ? teamA : teamB;
+    const updated = [...current];
+    updated.splice(index, 1);
+    setter(updated);
+  };
 
   const exampleResults = [
     'Team A - Bi số 5 vào đúng lỗ giữa.',
@@ -206,16 +183,11 @@ function ScoreboardPage() {
     const mId = searchParams?.get('matchId');
     const code = searchParams?.get('room');
     const guestToken = searchParams?.get('guestToken');
-    const creatorGuestToken = searchParams?.get('creatorGuestToken');
     const tId = searchParams?.get('tableId');
-
+    
     if (mId) setMatchId(mId);
     if (code) setMatchCode(code);
-    if (creatorGuestToken) {
-      setActorGuestToken(creatorGuestToken);
-    } else if (guestToken) {
-      setActorGuestToken(guestToken);
-    }
+    if (guestToken) setActorGuestToken(guestToken);
     if (tId) setTableId(tId);
 
     const handlePopState = (e: PopStateEvent) => {
@@ -230,50 +202,44 @@ function ScoreboardPage() {
       try {
         if (mId) {
           const matchData = await userMatchService.getMatchById(mId);
-          const responseData = (matchData as { data?: { teams?: Array<{ score?: number; members?: Array<{ guestName?: string; membershipName?: string; fullName?: string }> }>; tableId?: string; startTime?: string; createdByMembershipId?: string; creatorGuestToken?: string } })?.data || matchData;
-          const matchInfoData = responseData as { teams?: Array<{ score?: number; members?: Array<{ guestName?: string; membershipName?: string; fullName?: string }> }>; tableId?: string; startTime?: string; createdByMembershipId?: string; creatorGuestToken?: string };
-
-          setMatchInfo(matchInfoData);
-
-          if (matchInfoData?.creatorGuestToken && !actorGuestToken) {
-            setActorGuestToken(matchInfoData.creatorGuestToken);
-          }
-
-          const sA = matchInfoData?.teams?.[0]?.score ?? 0;
-          const sB = matchInfoData?.teams?.[1]?.score ?? 0;
+          const responseData = (matchData as any)?.data || matchData;
+          
+          setMatchInfo(responseData);
+          
+          const sA = responseData?.teams?.[0]?.score ?? 0;
+          const sB = responseData?.teams?.[1]?.score ?? 0;
           setScoreA(sA);
           setScoreB(sB);
-
-          const teamAMembers = matchInfoData?.teams?.[0]?.members?.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+          
+          const teamAMembers = responseData?.teams?.[0]?.members?.map((member: any) => 
             member.guestName || member.membershipName || member.fullName || 'Unknown'
           ) || [];
-          const teamBMembers = matchInfoData?.teams?.[1]?.members?.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+          const teamBMembers = responseData?.teams?.[1]?.members?.map((member: any) => 
             member.guestName || member.membershipName || member.fullName || 'Unknown'
           ) || [];
-
+          
           setTeamA(teamAMembers);
           setTeamB(teamBMembers);
-
-          if (!tId && matchInfoData?.tableId) {
-            setTableId(matchInfoData.tableId);
+          
+          if (!tId && responseData?.tableId) {
+            setTableId(responseData.tableId);
           }
-
-          if (matchInfoData?.startTime) {
-            setMatchStartTime(new Date(matchInfoData.startTime));
+          
+          if (responseData?.startTime) {
+            setMatchStartTime(new Date(responseData.startTime));
           }
         } else if (code) {
           const matchData = await userMatchService.getMatchByCode(code);
-          const responseData = (matchData as { data?: { matchId?: string; id?: string; teams?: Array<{ score?: number }> } })?.data || matchData;
-          const matchInfoData = responseData as { matchId?: string; id?: string; teams?: Array<{ score?: number }> };
-          const id = matchInfoData?.matchId || matchInfoData?.id;
+          const responseData = (matchData as any)?.data || matchData;
+          const id = responseData?.matchId || responseData?.id;
           if (id) setMatchId(id);
-
-          const sA = matchInfoData?.teams?.[0]?.score ?? 0;
-          const sB = matchInfoData?.teams?.[1]?.score ?? 0;
+          
+          const sA = responseData?.teams?.[0]?.score ?? 0;
+          const sB = responseData?.teams?.[1]?.score ?? 0;
           setScoreA(sA);
           setScoreB(sB);
         }
-      } catch {
+      } catch (e) {
         toast.error('Không thể tải thông tin trận đấu');
       } finally {
         timer = setTimeout(() => setLoading(false), 800);
@@ -285,18 +251,17 @@ function ScoreboardPage() {
       if (timer) clearTimeout(timer);
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [searchParams, actorGuestToken]);
+  }, []);
 
   useEffect(() => {
     const verifyTableInfo = async () => {
       if (tableId || matchInfo?.tableId) {
-        const currentTableId = tableId || matchInfo?.tableId || '';
+        const currentTableId = tableId || matchInfo?.tableId;
         try {
           const tableData = await userMatchService.verifyTable({ tableId: currentTableId });
-          const tableResponseData = (tableData as { data?: { name?: string; category?: string; clubId?: string } })?.data || tableData;
-          const tableInfoData = tableResponseData as { name?: string; category?: string; clubId?: string };
-          setTableInfo(tableInfoData);
-        } catch {
+          const tableResponseData = (tableData as any)?.data || tableData;
+          setTableInfo(tableResponseData);
+        } catch (tableError) {
           toast.error('Không thể tải thông tin bàn');
         }
       }
@@ -311,11 +276,11 @@ function ScoreboardPage() {
     const timer = setInterval(() => {
       const now = new Date();
       const elapsed = now.getTime() - matchStartTime.getTime();
-
+      
       const hours = Math.floor(elapsed / (1000 * 60 * 60));
       const minutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((elapsed % (1000 * 60)) / 1000);
-
+      
       const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       setElapsedTime(timeString);
     }, 1000);
@@ -340,7 +305,7 @@ function ScoreboardPage() {
         score: newB,
         actorGuestToken: actorGuestToken || undefined,
       });
-    } catch {
+    } catch (e) {
       toast.error('Cập nhật điểm thất bại.');
     } finally {
       setUpdating(false);
@@ -420,7 +385,7 @@ function ScoreboardPage() {
                 <>
                   <p className="text-sm font-semibold text-[#000000] mb-1">Kết Quả AI</p>
                   <div className="border border-gray-300 rounded-md p-3 text-sm text-[#000000] bg-white shadow-sm space-y-1">
-                    {(aiResults.length > 0 ? aiResults : exampleResults).map((item: string, index: number) => (
+                    {(aiResults.length > 0 ? aiResults : exampleResults).map((item, index) => (
                       <p key={index}>[AI]: {item}</p>
                     ))}
                   </div>
@@ -429,20 +394,15 @@ function ScoreboardPage() {
                 <>
                   <p className="text-sm font-semibold text-[#000000] mb-2">Thao tác nhanh</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       onClick={async () => {
                         if (!matchId) {
                           toast.error('Không tìm thấy thông tin trận đấu');
                           return;
                         }
-
+                        
                         if (!actorGuestToken && !matchInfo?.createdByMembershipId) {
-                          console.log('Debug - Quyền chỉnh sửa điểm:', {
-                            actorGuestToken,
-                            createdByMembershipId: matchInfo?.createdByMembershipId,
-                            matchInfo: matchInfo
-                          });
                           toast.error('Không có quyền chỉnh sửa điểm');
                           return;
                         }
@@ -456,25 +416,25 @@ function ScoreboardPage() {
                             actorGuestToken: actorGuestToken || undefined,
                             actorMembershipId: matchInfo?.createdByMembershipId || undefined,
                           });
-
+                          
                           socketService.emitScoreUpdate(matchId, 0, newScore);
-                        } catch {
+                        } catch (error) {
                           toast.error('Cập nhật điểm Team A thất bại');
-                          setScoreA(scoreA);
+                          setScoreA(scoreA); 
                         }
                       }}
                       className="text-[#000000]"
                     >
                       +1 Team A
                     </Button>
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       onClick={async () => {
                         if (!matchId) {
                           toast.error('Không tìm thấy thông tin trận đấu');
                           return;
                         }
-
+                        
                         if (!actorGuestToken && !matchInfo?.createdByMembershipId) {
                           toast.error('Không có quyền chỉnh sửa điểm');
                           return;
@@ -490,23 +450,23 @@ function ScoreboardPage() {
                             actorMembershipId: matchInfo?.createdByMembershipId || undefined,
                           });
                           socketService.emitScoreUpdate(matchId, 1, newScore);
-                        } catch {
+                        } catch (error) {
                           toast.error('Cập nhật điểm Team B thất bại');
-                          setScoreB(scoreB);
+                          setScoreB(scoreB); 
                         }
                       }}
                       className="text-[#000000]"
                     >
                       +1 Team B
                     </Button>
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       onClick={async () => {
                         if (!matchId) {
                           toast.error('Không tìm thấy thông tin trận đấu');
                           return;
                         }
-
+                        
                         if (!actorGuestToken && !matchInfo?.createdByMembershipId) {
                           toast.error('Không có quyền chỉnh sửa điểm');
                           return;
@@ -521,25 +481,25 @@ function ScoreboardPage() {
                             actorGuestToken: actorGuestToken || undefined,
                             actorMembershipId: matchInfo?.createdByMembershipId || undefined,
                           });
-
+                          
                           socketService.emitScoreUpdate(matchId, 0, newScore);
-                        } catch {
+                        } catch (error) {
                           toast.error('Cập nhật điểm Team A thất bại');
-                          setScoreA(scoreA);
+                          setScoreA(scoreA); 
                         }
                       }}
                       className="text-[#000000]"
                     >
                       -1 Team A
                     </Button>
-                    <Button
-                      variant="outline"
+                    <Button 
+                      variant="outline" 
                       onClick={async () => {
                         if (!matchId) {
                           toast.error('Không tìm thấy thông tin trận đấu');
                           return;
                         }
-
+                        
                         if (!actorGuestToken && !matchInfo?.createdByMembershipId) {
                           toast.error('Không có quyền chỉnh sửa điểm');
                           return;
@@ -554,11 +514,11 @@ function ScoreboardPage() {
                             actorGuestToken: actorGuestToken || undefined,
                             actorMembershipId: matchInfo?.createdByMembershipId || undefined,
                           });
-
+                          
                           socketService.emitScoreUpdate(matchId, 1, newScore);
-                        } catch {
+                        } catch (error) {
                           toast.error('Cập nhật điểm Team B thất bại');
-                          setScoreB(scoreB);
+                          setScoreB(scoreB); 
                         }
                       }}
                       className="text-[#000000]"
@@ -575,14 +535,14 @@ function ScoreboardPage() {
             <div className="flex flex-row gap-4 w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl mx-auto">
               <Button
                 onClick={handleEditScore}
-                style={{ backgroundColor: '#8ADB10' }}
+                style={{ backgroundColor: '#FF0000' }}
                 className="w-1/2 hover:bg-red-600 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base flex items-center justify-center"
               >
                 Chỉnh sửa
               </Button>
               <Button
                 onClick={handleEndMatch}
-                style={{ backgroundColor: '#FF0000' }}
+                style={{ backgroundColor: '#8ADB10' }}
                 className="w-1/2 hover:bg-lime-600 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base flex items-center justify-center"
               >
                 Kết thúc
@@ -591,9 +551,9 @@ function ScoreboardPage() {
           </div>
 
           {showEditPopup && (
-            <ScoreEditor
+            <PopupEditScore
               onClose={() => setShowEditPopup(false)}
-              onSave={(newScoreA, newScoreB) => {
+              onSave={(newScoreA, newScoreB, note) => {
                 setScoreA(newScoreA);
                 setScoreB(newScoreB);
                 void persistScores(newScoreA, newScoreB);
@@ -603,13 +563,14 @@ function ScoreboardPage() {
           )}
 
           {showEditChoicePopup && (
-            <EditOption
+            <PopupEditChoice
               onClose={() => setShowEditChoicePopup(false)}
               onEditScore={() => {
                 setShowEditChoicePopup(false);
                 setShowEditPopup(true);
               }}
               onEditMembers={() => {
+                // Kiểm tra clubId trước khi mở popup edit members
                 if (!tableInfo?.clubId) {
                   toast.error('Không thể xác định club để chỉnh sửa thành viên');
                   return;
@@ -621,28 +582,29 @@ function ScoreboardPage() {
           )}
 
           {showEditMembersPopup && (
-            <TeamMembers
+            <PopupEditMembers
               onClose={() => setShowEditMembersPopup(false)}
               onSave={async (newTeamA, newTeamB) => {
                 setTeamA(newTeamA);
                 setTeamB(newTeamB);
                 setShowEditMembersPopup(false);
-
+                
+                // ✅ RE-FETCH MATCHINFO: Để cập nhật giao diện với tên membership mới
                 if (matchId) {
                   try {
                     const updatedMatchInfo = await userMatchService.getMatchById(matchId);
-                    const responseData = (updatedMatchInfo as { data?: { teams?: Array<{ members?: Array<{ guestName?: string; membershipName?: string; fullName?: string }> }> } })?.data || updatedMatchInfo;
-                    const matchInfoData = responseData as { teams?: Array<{ members?: Array<{ guestName?: string; membershipName?: string; fullName?: string }> }> };
-                    setMatchInfo(matchInfoData);
-
-                    if (matchInfoData?.teams) {
-                      const teamAMembers = matchInfoData.teams[0]?.members?.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+                    const responseData = (updatedMatchInfo as any)?.data || updatedMatchInfo;
+                    setMatchInfo(responseData);
+                    
+                    // Cập nhật teams từ matchInfo mới
+                    if (responseData?.teams) {
+                      const teamAMembers = responseData.teams[0]?.members?.map((member: any) => 
                         member.guestName || member.membershipName || member.fullName || ''
                       ) || [''];
-                      const teamBMembers = matchInfoData.teams[1]?.members?.map((member: { guestName?: string; membershipName?: string; fullName?: string }) =>
+                      const teamBMembers = responseData.teams[1]?.members?.map((member: any) => 
                         member.guestName || member.membershipName || member.fullName || ''
                       ) || [''];
-
+                      
                       setTeamA(teamAMembers);
                       setTeamB(teamBMembers);
                     }
@@ -655,13 +617,13 @@ function ScoreboardPage() {
               initialTeamB={teamB}
               matchId={matchId}
               actorGuestToken={actorGuestToken}
-              actorMembershipId={matchInfo?.createdByMembershipId || null}
-              clubId={tableInfo?.clubId || null}
+              actorMembershipId={matchInfo?.createdByMembershipId}
+              clubId={tableInfo?.clubId} // Thêm clubId để validation membership
             />
           )}
 
           {showEndPopup && (
-            <MatchEnd
+            <PopupEndMatch
               onClose={() => setShowEndPopup(false)}
               onConfirm={async () => {
                 if (!matchId) {
@@ -669,47 +631,47 @@ function ScoreboardPage() {
                   setShowEndPopup(false);
                   return;
                 }
-
+                
                 if (!actorGuestToken && !matchInfo?.createdByMembershipId) {
                   toast.error('Không thể xác thực người dùng để kết thúc trận đấu');
                   setShowEndPopup(false);
                   return;
                 }
-
+                
                 try {
-                  const endMatchPayload: { actorGuestToken?: string; actorMembershipId?: string } = {};
-
+                  const endMatchPayload: any = {};
+                  
                   if (actorGuestToken) {
                     endMatchPayload.actorGuestToken = actorGuestToken;
                   } else if (matchInfo?.createdByMembershipId) {
                     endMatchPayload.actorMembershipId = matchInfo.createdByMembershipId;
                   }
-
+                  
                   await userMatchService.endMatch(matchId, endMatchPayload);
-
+                  
                   toast.success('Trận đấu đã kết thúc thành công!');
-
+                  
                   if (socketService.isSocketConnected()) {
                     socketService.emitMatchEnd(matchId, {
                       matchId,
-                      tableName: tableInfo?.name || undefined,
-                      matchCode: matchCode || undefined,
+                      tableName: tableInfo?.name,
+                      matchCode,
                       scoreA,
                       scoreB,
                       teamA,
                       teamB,
-                      tableId: tableId || undefined,
+                      tableId,
                       endTime: new Date().toISOString()
                     });
                   }
-
+                  
                   if (!matchId) {
                     toast.error('Thiếu thông tin trận đấu');
                     return;
                   }
-
+                  
                   const params = new URLSearchParams();
-
+                  
                   if (matchId) params.set('matchId', matchId);
                   if (tableInfo?.name) params.set('tableName', tableInfo.name);
                   if (matchCode) params.set('matchCode', matchCode);
@@ -718,46 +680,45 @@ function ScoreboardPage() {
                   if (teamA.length > 0) params.set('teamA', teamA.join(','));
                   if (teamB.length > 0) params.set('teamB', teamB.join(','));
                   if (tableId) params.set('tableId', tableId);
-
-                  const targetUrl = `/user/match/end?${params.toString()}`;
-
+                  
+                  const targetUrl = `/user/endmatch?${params.toString()}`;
+                  
                   setShowEndPopup(false);
-
+                  
                   setShowEndPopup(false);
-
+                  
                   if (router && typeof router.push === 'function') {
                     try {
                       router.push(targetUrl);
-
+                      
                       setTimeout(() => {
-                        if (window.location.pathname !== '/user/match/end') {
+                        if (window.location.pathname !== '/user/endmatch') {
                           window.location.href = targetUrl;
                         }
                       }, 500);
-
-                    } catch {
+                      
+                    } catch (routerError) {
                       window.location.href = targetUrl;
                     }
                   } else {
                     window.location.href = targetUrl;
                   }
-
-                } catch (e) {
+                  
+                } catch (e: any) {
                   let errorMessage = 'Kết thúc trận đấu thất bại';
-
-                  const error = e as { message?: string };
-                  if (error.message?.includes('actor identifier')) {
+                  
+                  if (e.message?.includes('actor identifier')) {
                     errorMessage = 'Không thể xác thực người dùng để kết thúc trận đấu';
-                  } else if (error.message?.includes('not found')) {
+                  } else if (e.message?.includes('not found')) {
                     errorMessage = 'Không tìm thấy trận đấu';
-                  } else if (error.message?.includes('unauthorized')) {
+                  } else if (e.message?.includes('unauthorized')) {
                     errorMessage = 'Bạn không có quyền kết thúc trận đấu này';
-                  } else if (error.message) {
-                    errorMessage += ': ' + error.message;
+                  } else if (e.message) {
+                    errorMessage += ': ' + e.message;
                   }
-
+                  
                   toast.error(errorMessage);
-
+                  
                   setShowEndPopup(false);
                 }
               }}
@@ -769,7 +730,7 @@ function ScoreboardPage() {
   );
 }
 
-export default function ScoreboardPageWrapper() {
+export default function ScreenControlPage() {
   return (
     <Suspense fallback={<ScoreLensLoading text="Đang tải..." />}>
       <ScoreboardPage />

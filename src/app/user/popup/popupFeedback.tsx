@@ -1,21 +1,13 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
 
-interface SuccessMessageProps {
+interface PopupFeedbackProps {
   onClose: () => void;
   onConfirm: () => void;
 }
 
-export default function SuccessMessage({ onClose, onConfirm }: SuccessMessageProps) {
-  const router = useRouter();
-
-  const handleConfirm = () => {
-    onConfirm();
-    router.push('/');
-  };
-
+export default function PopupFeedback({ onClose, onConfirm }: PopupFeedbackProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
@@ -30,12 +22,14 @@ export default function SuccessMessage({ onClose, onConfirm }: SuccessMessagePro
         <h2 className="text-lg sm:text-xl font-bold text-[#000000]">
           Cảm ơn quý khách đã sử dụng dịch vụ ScoreLens!
         </h2>
+        <p className="text-[#FF0000] text-sm sm:text-base">
+          Vui lòng thanh toán
+        </p>
         <Button
-          onClick={handleConfirm}
-          style={{ backgroundColor: '#8ADB10' }}
-          className="hover:bg-lime-500 text-[#FFFFFF] font-semibold py-2 px-4 rounded-lg text-sm sm:text-base"
+          onClick={onConfirm}
+          className="bg-[#8ADB10] hover:bg-lime-500 text-[#FFFFFF] font-semibold py-2 px-4 rounded-lg text-sm sm:text-base"
         >
-          Xác nhận
+          Thanh toán
         </Button>
       </div>
     </div>

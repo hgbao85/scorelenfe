@@ -5,9 +5,10 @@ import Image from 'next/image';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
-import { userMatchService, TeamMembersProps } from '@/lib/userMatchService';
+import { userMatchService, PopupEditMembersProps } from '@/lib/userMatchService';
+import socketService from '@/lib/socketService';
 
-export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeamB, matchId, actorGuestToken, actorMembershipId, clubId }: TeamMembersProps) {
+export default function PopupEditMembers({ onClose, onSave, initialTeamA, initialTeamB, matchId, actorGuestToken, actorMembershipId, clubId }: PopupEditMembersProps) {
   const [teamA, setTeamA] = useState<string[]>(initialTeamA && initialTeamA.length > 0 ? initialTeamA : ['']);
   const [teamB, setTeamB] = useState<string[]>(initialTeamB && initialTeamB.length > 0 ? initialTeamB : ['']);
 
@@ -113,7 +114,7 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
                 });
               }
 
-            } catch {
+            } catch (error: any) {
               guestUpdates.push({
                 teamIndex,
                 memberIndex,
@@ -184,8 +185,8 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
         onSave(teamA, teamB);
         onClose();
       }, 100);
-    } catch (error) {
-      const errorMessage = (error as { message?: string })?.message || 'Cập nhật thành viên thất bại';
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Cập nhật thành viên thất bại';
       toast.error(errorMessage);
     }
   };

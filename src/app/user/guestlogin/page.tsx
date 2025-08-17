@@ -14,11 +14,8 @@ function GuestLoginContent() {
   const [tableNumber, setTableNumber] = useState('');
   const [tableId, setTableId] = useState('');
   const [tableName, setTableName] = useState('');
-  const [tableInfo, setTableInfo] = useState<{
-    tableName?: string;
-    name?: string;
-    category?: string;
-  } | null>(null);
+  const [tableInfo, setTableInfo] = useState<any>(null);
+  const [matchId, setMatchId] = useState('');
   const [loading, setLoading] = useState(true);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const router = useRouter();
@@ -42,10 +39,12 @@ function GuestLoginContent() {
     const room = searchParams?.get('room');
     const table = searchParams?.get('table');
     const tId = searchParams?.get('tableId');
-
+    const mId = searchParams?.get('matchId');
+    
     if (room) setRoomCode(room.slice(0, 6).split(''));
     if (table) setTableNumber(table);
     if (tId) setTableId(tId);
+    if (mId) setMatchId(mId);
 
     if (!table) setTableNumber('??');
     if (!tId) setTableId('TB-1755160186911');
@@ -59,20 +58,20 @@ function GuestLoginContent() {
       if (tableId) {
         try {
           const result = await userMatchService.verifyTable({ tableId });
-
-          const resultData = result as { data?: { tableName?: string; name?: string; category?: string } };
+          
+          const resultData = result as Record<string, any>;
           const responseData = resultData?.data || resultData;
-          const tableData = responseData as { tableName?: string; name?: string; category?: string };
-          setTableInfo(tableData);
-
-          if (tableData?.tableName) {
-            setTableName(tableData.tableName);
-          } else if (tableData?.name) {
-            setTableName(tableData.name);
+          setTableInfo(responseData);
+          
+          if (responseData?.tableName) {
+            setTableName(responseData.tableName);
+          } else if (responseData?.name) {
+            setTableName(responseData.name);
           }
-
+          
           toast.success('Chào mừng bạn đến với ScoreLens');
-        } catch {
+        } catch (error) {
+          // Table verification failed
         }
       }
     };
@@ -110,24 +109,23 @@ function GuestLoginContent() {
   const handleContinue = async () => {
     const code = roomCode.join('');
     if (code.length < 6) return;
-
+    
     try {
       const matchData = await userMatchService.getMatchByCode(code);
-      const responseData = (matchData as { data?: { matchId?: string } })?.data || matchData;
-      const matchInfo = responseData as { matchId?: string };
-
-      if (matchInfo && matchInfo.matchId) {
+      const responseData = (matchData as any)?.data || matchData;
+      
+      if (responseData && responseData.matchId) {
         const params = new URLSearchParams({ table: tableName || tableNumber || '??' });
         if (code) params.set('room', code);
-        if (matchInfo.matchId) params.set('matchId', matchInfo.matchId);
+        if (responseData.matchId) params.set('matchId', responseData.matchId);
         if (tableId) params.set('tableId', tableId);
-
+        
         toast.success('Mã phòng hợp lệ!');
-        router.push(`/user/match/join?${params.toString()}`);
+        router.push(`/user/guest?${params.toString()}`);
       } else {
         toast.error('Mã phòng không hợp lệ!');
       }
-    } catch {
+    } catch (error) {
       toast.error('Mã phòng không tồn tại hoặc đã bị hủy!');
     }
   };
@@ -158,8 +156,8 @@ function GuestLoginContent() {
                     ${focusedIndex === index
                       ? 'border-[#8ADB10] shadow-lg'
                       : digit
-                        ? 'border-[#8ADB10]'
-                        : 'border-gray-300'}`}
+                      ? 'border-[#8ADB10]'
+                      : 'border-gray-300'}`}
                   onClick={() => inputRefs.current[index]?.focus()}
                 >
                   <input

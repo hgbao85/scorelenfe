@@ -91,17 +91,7 @@ class SocketService {
     }
   }
 
-  emitMatchEnd(matchId: string, matchData: {
-    matchId?: string;
-    tableName?: string;
-    matchCode?: string;
-    scoreA?: number;
-    scoreB?: number;
-    teamA?: string[];
-    teamB?: string[];
-    tableId?: string;
-    endTime?: string;
-  }) {
+  emitMatchEnd(matchId: string, matchData: any) {
     if (this.socket) {
       this.socket.emit('match_ended', {
         matchId,
