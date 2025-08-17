@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { config } from './config';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -9,7 +10,7 @@ class SocketService {
       return this.socket;
     }
 
-    this.socket = io('https://scorelens-backend.onrender.com', {
+    this.socket = io(config.socketUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
     });
@@ -91,7 +92,17 @@ class SocketService {
     }
   }
 
-  emitMatchEnd(matchId: string, matchData: any) {
+  emitMatchEnd(matchId: string, matchData: {
+    matchId?: string;
+    tableName?: string;
+    matchCode?: string;
+    scoreA?: number;
+    scoreB?: number;
+    teamA?: string[];
+    teamB?: string[];
+    tableId?: string;
+    endTime?: string;
+  }) {
     if (this.socket) {
       this.socket.emit('match_ended', {
         matchId,
