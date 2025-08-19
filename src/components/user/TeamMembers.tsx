@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 import { userMatchService, TeamMembersProps } from '@/lib/userMatchService';
 
-export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeamB, matchId, actorGuestToken, actorMembershipId, clubId }: TeamMembersProps) {
+export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeamB, matchId, actorGuestToken, actorMembershipId, clubId, sessionToken }: TeamMembersProps) {
   const [teamA, setTeamA] = useState<string[]>(initialTeamA && initialTeamA.length > 0 ? initialTeamA : ['']);
   const [teamB, setTeamB] = useState<string[]>(initialTeamB && initialTeamB.length > 0 ? initialTeamB : ['']);
 
@@ -51,6 +51,11 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
 
     if (!actorGuestToken && !actorMembershipId) {
       toast.error('Không có quyền chỉnh sửa thành viên');
+      return;
+    }
+
+    if (!sessionToken || sessionToken.trim() === '') {
+      toast.error('SessionToken không hợp lệ');
       return;
     }
 
@@ -113,13 +118,19 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
                 });
               }
 
-            } catch {
+            } catch (error) {
               guestUpdates.push({
                 teamIndex,
                 memberIndex,
                 guestName: memberName.trim()
               });
             }
+          } else {
+            guestUpdates.push({
+              teamIndex,
+              memberIndex,
+              guestName: memberName.trim()
+            });
           }
         }
       }
@@ -156,7 +167,6 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
           }
         });
       }
-
       const teams = [
         teamA.filter(name => name.trim() !== '').map(name => {
           const isPhoneNumber = /^\d+$/.test(name.trim());
@@ -175,11 +185,9 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
           }
         })
       ];
-
-      await userMatchService.updateTeamMembersV2(matchId, teams, actorGuestToken || undefined, actorMembershipId || undefined);
+      await userMatchService.updateTeamMembersV2(matchId, teams, sessionToken, actorGuestToken || undefined, actorMembershipId || undefined);
 
       toast.success('Cập nhật thành viên thành công!');
-
       setTimeout(() => {
         onSave(teamA, teamB);
         onClose();
@@ -196,7 +204,6 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
         <h2 className="text-xl font-bold text-[#000000] mb-6 text-center">
           Chỉnh sửa thành viên
         </h2>
-
         <div className="space-y-6 mb-6">
           <div className="text-center mb-4">
             <p className="text-sm text-gray-600">
