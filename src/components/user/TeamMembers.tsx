@@ -6,17 +6,97 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 import { userMatchService, TeamMembersProps } from '@/lib/userMatchService';
+import { useI18n } from '@/lib/i18n/provider';
 
 export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeamB, matchId, actorGuestToken, actorMembershipId, clubId, sessionToken }: TeamMembersProps) {
+  const { t } = useI18n();
   const [teamA, setTeamA] = useState<string[]>(initialTeamA && initialTeamA.length > 0 ? initialTeamA : ['']);
   const [teamB, setTeamB] = useState<string[]>(initialTeamB && initialTeamB.length > 0 ? initialTeamB : ['']);
+  const [creatorMembershipName, setCreatorMembershipName] = useState<string>('');
+  const [teamAMembershipInfo, setTeamAMembershipInfo] = useState<Map<string, { membershipId: string; membershipName: string }>>(new Map());
+  const [teamBMembershipInfo, setTeamBMembershipInfo] = useState<Map<string, { membershipId: string; membershipName: string }>>(new Map());
 
   useEffect(() => {
-    if (initialTeamA && initialTeamA.length > 0) setTeamA(initialTeamA);
-    if (initialTeamB && initialTeamB.length > 0) setTeamB(initialTeamB);
-  }, [initialTeamA, initialTeamB]);
+    const cleanupDuplicates = (team: string[]) => {
+      const seen = new Set<string>();
+      const cleaned: string[] = [];
+
+      team.forEach(member => {
+        if (member.trim() === '') {
+          cleaned.push(member);
+        } else if (!seen.has(member)) {
+          seen.add(member);
+          cleaned.push(member);
+        }
+      });
+
+      return cleaned.length > 0 ? cleaned : [''];
+    };
+
+    if (initialTeamA && initialTeamA.length > 0) {
+      const cleanedTeamA = cleanupDuplicates(initialTeamA);
+      setTeamA(cleanedTeamA);
+    }
+    if (initialTeamB && initialTeamB.length > 0) {
+      const cleanedTeamB = cleanupDuplicates(initialTeamB);
+      setTeamB(cleanedTeamB);
+    }
+
+    const getCreatorMembershipName = async () => {
+      if (matchId && actorMembershipId) {
+        try {
+          const matchData = await userMatchService.getMatchById(matchId);
+          const responseData = (matchData as { data?: { teams?: Array<{ members?: Array<{ membershipId?: string; membershipName?: string }> }> } })?.data || matchData;
+          const matchInfoData = responseData as { teams?: Array<{ members?: Array<{ membershipId?: string; membershipName?: string }> }> };
+
+          if (matchInfoData?.teams) {
+            const newTeamAMembershipInfo = new Map();
+            const newTeamBMembershipInfo = new Map();
+
+            if (matchInfoData.teams[0]?.members) {
+              matchInfoData.teams[0].members.forEach((member: any) => {
+                if (member.membershipId && member.membershipName) {
+                  newTeamAMembershipInfo.set(member.membershipName.trim().toLowerCase(), {
+                    membershipId: member.membershipId,
+                    membershipName: member.membershipName
+                  });
+                  if (member.membershipId === actorMembershipId) {
+                    setCreatorMembershipName(member.membershipName);
+                  }
+                }
+              });
+            }
+
+            if (matchInfoData.teams[1]?.members) {
+              matchInfoData.teams[1].members.forEach((member: any) => {
+                if (member.membershipId && member.membershipName) {
+                  newTeamBMembershipInfo.set(member.membershipName.trim().toLowerCase(), {
+                    membershipId: member.membershipId,
+                    membershipName: member.membershipName
+                  });
+                  if (member.membershipId === actorMembershipId) {
+                    setCreatorMembershipName(member.membershipName);
+                  }
+                }
+              });
+            }
+
+            setTeamAMembershipInfo(newTeamAMembershipInfo);
+            setTeamBMembershipInfo(newTeamBMembershipInfo);
+          }
+        } catch (error) {
+        }
+      }
+    };
+
+    getCreatorMembershipName();
+  }, [initialTeamA, initialTeamB, matchId, actorMembershipId]);
 
   const handleChange = (team: 'A' | 'B', index: number, value: string) => {
+    if (index === 0) {
+      return;
+    }
+
     const setter = team === 'A' ? setTeamA : setTeamB;
     const current = team === 'A' ? teamA : teamB;
     const updated = [...current];
@@ -28,16 +108,24 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
     const setter = team === 'A' ? setTeamA : setTeamB;
     const current = team === 'A' ? teamA : teamB;
     if (current.length >= 4) {
-      toast.error('Không thể thêm quá 4 người chơi!');
+      toast.error(t('teamMembers.errors.tooManyPlayers'));
       return;
     }
     setter([...current, '']);
   };
 
   const handleRemovePlayer = (team: 'A' | 'B', index: number) => {
-    if (index === 0) return;
     const setter = team === 'A' ? setTeamA : setTeamB;
     const current = team === 'A' ? teamA : teamB;
+
+    const playerName = current[index];
+    const duplicateCount = current.filter(name => name === playerName).length;
+
+    if (index === 0 && duplicateCount === 1) {
+      toast.error(t('teamMembers.errors.cannotRemoveOnlyOwner'));
+      return;
+    }
+
     const updated = [...current];
     updated.splice(index, 1);
     setter(updated);
@@ -45,22 +133,22 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
 
   const handleSave = async () => {
     if (!matchId) {
-      toast.error('Không tìm thấy thông tin trận đấu');
+      toast.error(t('teamMembers.errors.matchNotFound'));
       return;
     }
 
     if (!actorGuestToken && !actorMembershipId) {
-      toast.error('Không có quyền chỉnh sửa thành viên');
+      toast.error(t('teamMembers.errors.noPermission'));
       return;
     }
 
     if (!sessionToken || sessionToken.trim() === '') {
-      toast.error('SessionToken không hợp lệ');
+      toast.error(t('teamMembers.errors.invalidSessionToken'));
       return;
     }
 
     if (!clubId) {
-      toast.error('Không thể xác định club để validation membership');
+      toast.error(t('teamMembers.errors.cannotDetermineClub'));
       return;
     }
 
@@ -71,7 +159,7 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
 
       for (let teamIndex = 0; teamIndex < 2; teamIndex++) {
         const team = teamIndex === 0 ? teamA : teamB;
-        const teamName = teamIndex === 0 ? 'Team A' : 'Team B';
+        const teamName = teamIndex === 0 ? t('teamMembers.teamA') : t('teamMembers.teamB');
 
         for (let memberIndex = 0; memberIndex < team.length; memberIndex++) {
           const memberName = team[memberIndex];
@@ -101,12 +189,12 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
               }
 
               if (!membershipInfo.isBrandCompatible) {
-                validationErrors.push(`${teamName} - ${memberName}: Không thuộc cùng brand`);
+                validationErrors.push(`${teamName} - ${memberName}: ${t('teamMembers.errors.invalidMemberCode')}`);
                 continue;
               }
 
               if (membershipInfo.data?.status === 'inactive') {
-                validationErrors.push(`${teamName} - ${memberName}: Tài khoản bị cấm`);
+                validationErrors.push(`${teamName} - ${memberName}: ${t('teamMembers.errors.accountBanned')}`);
                 continue;
               }
 
@@ -137,7 +225,7 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
 
       if (validationErrors.length > 0) {
         const errorMessage = validationErrors.join('\n');
-        toast.error(`Có lỗi validation:\n${errorMessage}`);
+        toast.error(`${t('teamMembers.errors.validationError')}\n${errorMessage}`);
         return;
       }
 
@@ -167,13 +255,32 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
           }
         });
       }
+
+
+
+
       const teams = [
         teamA.filter(name => name.trim() !== '').map(name => {
           const isPhoneNumber = /^\d+$/.test(name.trim());
           if (isPhoneNumber) {
             return { phoneNumber: name.trim() };
           } else {
-            return { guestName: name.trim() };
+            const playerKey = name.trim().toLowerCase();
+            const existingMember = teamAMembershipInfo.get(playerKey);
+
+            if (existingMember) {
+              return {
+                membershipId: existingMember.membershipId,
+                membershipName: existingMember.membershipName
+              };
+            } else {
+              const isCreatorName = creatorMembershipName && name.trim().toLowerCase() === creatorMembershipName.toLowerCase();
+              if (isCreatorName) {
+                return { membershipId: actorMembershipId };
+              } else {
+                return { guestName: name.trim() };
+              }
+            }
           }
         }),
         teamB.filter(name => name.trim() !== '').map(name => {
@@ -181,19 +288,38 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
           if (isPhoneNumber) {
             return { phoneNumber: name.trim() };
           } else {
-            return { guestName: name.trim() };
+            const playerKey = name.trim().toLowerCase();
+            const existingMember = teamBMembershipInfo.get(playerKey);
+
+            if (existingMember) {
+              return {
+                membershipId: existingMember.membershipId,
+                membershipName: existingMember.membershipName
+              };
+            } else {
+              const isCreatorName = creatorMembershipName && name.trim().toLowerCase() === creatorMembershipName.toLowerCase();
+              if (isCreatorName) {
+                return { membershipId: actorMembershipId };
+              } else {
+                return { guestName: name.trim() };
+              }
+            }
           }
         })
       ];
+
+
+
+
       await userMatchService.updateTeamMembersV2(matchId, teams, sessionToken, actorGuestToken || undefined, actorMembershipId || undefined);
 
-      toast.success('Cập nhật thành viên thành công!');
+      toast.success(t('teamMembers.errors.updateSuccess'));
       setTimeout(() => {
         onSave(teamA, teamB);
         onClose();
       }, 100);
     } catch (error) {
-      const errorMessage = (error as { message?: string })?.message || 'Cập nhật thành viên thất bại';
+      const errorMessage = (error as { message?: string })?.message || t('teamMembers.errors.updateFailed');
       toast.error(errorMessage);
     }
   };
@@ -202,24 +328,25 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-lg">
         <h2 className="text-xl font-bold text-[#000000] mb-6 text-center">
-          Chỉnh sửa thành viên
+          {t('teamMembers.title')}
         </h2>
         <div className="space-y-6 mb-6">
           <div className="text-center mb-4">
             <p className="text-sm text-gray-600">
-              Bạn có thể nhập số điện thoại hội viên hoặc tên khách
+              {t('teamMembers.description')}
             </p>
           </div>
 
           <div>
-            <div className="font-semibold mb-3 text-center text-[#000000] text-lg">Team A</div>
+            <div className="font-semibold mb-3 text-center text-[#000000] text-lg">{t('teamMembers.teamA')}</div>
             {teamA.map((player, idx) => (
               <div key={idx} className="flex items-center gap-2 mb-2">
                 <Input
                   value={player}
                   onChange={e => handleChange('A', idx, e.target.value)}
-                  placeholder={idx === 0 ? "Tên chủ phòng" : "Số điện thoại hoặc tên khách"}
-                  className="w-full"
+                  placeholder={idx === 0 ? t('teamMembers.roomOwnerPlaceholder') : t('teamMembers.memberOrGuestPlaceholder')}
+                  className={`w-full ${idx === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  disabled={idx === 0}
                 />
                 {idx === 0 ? (
                   <Button
@@ -232,7 +359,7 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
                       src="/icon/plus-circle.svg"
                       width={25}
                       height={25}
-                      alt="Thêm người chơi"
+                      alt={t('teamMembers.addPlayer')}
                     />
                   </Button>
                 ) : (
@@ -246,7 +373,7 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
                       src="/icon/trash-2.svg"
                       width={25}
                       height={25}
-                      alt="Xóa người chơi"
+                      alt={t('teamMembers.removePlayer')}
                     />
                   </Button>
                 )}
@@ -259,13 +386,13 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
           </div>
 
           <div>
-            <div className="font-semibold mb-3 text-center text-lg text-[#000000]">Team B</div>
+            <div className="font-semibold mb-3 text-center text-lg text-[#000000]">{t('teamMembers.teamB')}</div>
             {teamB.map((player, idx) => (
               <div key={idx} className="flex items-center gap-2 mb-2">
                 <Input
                   value={player}
                   onChange={e => handleChange('B', idx, e.target.value)}
-                  placeholder={idx === 0 ? "Tên chủ phòng" : "Số điện thoại hoặc tên khách"}
+                  placeholder={idx === 0 ? t('teamMembers.roomOwnerPlaceholder') : t('teamMembers.memberOrGuestPlaceholder')}
                   className="w-full"
                 />
                 {idx === 0 ? (
@@ -279,7 +406,7 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
                       src="/icon/plus-circle.svg"
                       width={25}
                       height={25}
-                      alt="Thêm người chơi"
+                      alt={t('teamMembers.addPlayer')}
                     />
                   </Button>
                 ) : (
@@ -293,7 +420,7 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
                       src="/icon/trash-2.svg"
                       width={25}
                       height={25}
-                      alt="Xóa người chơi"
+                      alt={t('teamMembers.removePlayer')}
                     />
                   </Button>
                 )}
@@ -307,13 +434,13 @@ export default function TeamMembers({ onClose, onSave, initialTeamA, initialTeam
             onClick={onClose}
             className="w-1/2 bg-[#FF0000] hover:bg-red-600 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base flex items-center justify-center"
           >
-            Hủy
+            {t('teamMembers.cancel')}
           </button>
           <button
             onClick={handleSave}
             className="w-1/2 bg-[#8ADB10] hover:bg-lime-600 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base flex items-center justify-center"
           >
-            Lưu thay đổi
+            {t('teamMembers.saveChanges')}
           </button>
         </div>
       </div>

@@ -5,6 +5,7 @@ import HeaderManager from "@/components/manager/HeaderManager";
 import CameraSearchBar from "@/components/manager/CameraSearchBar";
 import CameraGrid from "@/components/manager/CameraGrid";
 import CameraPageBanner from "@/components/manager/CameraPageBanner";
+import { CameraVideoModal } from "@/components/manager/CameraVideoModal";
 import { useRouter } from "next/navigation";
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { ScoreLensLoading } from '@/components/ui/ScoreLensLoading';
@@ -13,6 +14,7 @@ import { managerCameraService } from '@/lib/managerCameraService';
 import { managerTableService } from '@/lib/managerTableService';
 import toast from 'react-hot-toast';
 import { useManagerAuthGuard } from '@/lib/hooks/useManagerAuthGuard';
+import { useI18n } from '@/lib/i18n/provider';
 
 export interface Camera {
   cameraId: string;
@@ -33,6 +35,7 @@ interface Table {
 }
 
 export default function CameraPage() {
+  const { t } = useI18n();
   const { isChecking } = useManagerAuthGuard();
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -40,6 +43,8 @@ export default function CameraPage() {
   const [tables, setTables] = useState<Table[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -83,8 +88,8 @@ export default function CameraPage() {
         setTables(mappedTables);
       })
       .catch(() => {
-        setError('Không thể tải danh sách camera hoặc bàn');
-        toast.error('Không thể tải danh sách camera hoặc bàn');
+        setError(t('cameras.cannotLoadCameras'));
+        toast.error(t('cameras.cannotLoadCameras'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -94,9 +99,9 @@ export default function CameraPage() {
   const formatCategory = (category: string) => {
     switch (category) {
       case 'pool-8':
-        return 'Pool 8';
+        return t('cameras.formatCategory.pool8');
       case 'carom':
-        return 'Carom';
+        return t('cameras.formatCategory.carom');
       default:
         return category;
     }
@@ -109,8 +114,7 @@ export default function CameraPage() {
   };
 
   const filteredCameras = cameras.filter(
-    c => getTableDisplay(c.tableId).toLowerCase().includes(search.toLowerCase()) ||
-      c.IPAddress.toLowerCase().includes(search.toLowerCase())
+    c => getTableDisplay(c.tableId).toLowerCase().includes(search.toLowerCase())
   );
 
   const handleAddCamera = async () => {
@@ -129,16 +133,39 @@ export default function CameraPage() {
     router.push(`/manager/camera/${cameraId}`);
   };
 
+  const handleViewCamera = (cameraId: string) => {
+    const camera = cameras.find(c => c.cameraId === cameraId);
+    if (camera && !camera.isConnect) {
+      toast.error(t('cameras.cameraNotConnected'));
+      return;
+    }
+    setSelectedCameraId(cameraId);
+    setShowVideoModal(true);
+  };
+
+  const handleCloseVideoModal = () => {
+    setShowVideoModal(false);
+    setSelectedCameraId(null);
+  };
+
   return (
     <>
-      {loading && <ScoreLensLoading text="Đang tải..." />}
+      <CameraVideoModal
+        isOpen={showVideoModal}
+        cameraId={selectedCameraId}
+        onClose={handleCloseVideoModal}
+        onConfirm={handleCloseVideoModal}
+        isDetailView={true}
+      />
+
+      {loading && <ScoreLensLoading text={t('cameras.loading')} />}
       <div className="min-h-screen flex bg-[#18191A]">
         <SidebarManager />
-        <main className="flex-1 bg-white min-h-screen">
-          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-8 py-8 transition-all duration-300">
+        <main className="flex-1 bg-white min-h-screen lg:ml-0">
+          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 transition-all duration-300">
             <HeaderManager />
           </div>
-          <div className="px-10 pb-10">
+          <div className="px-4 sm:px-6 lg:px-10 pb-10 pt-16 lg:pt-0">
             <CameraPageBanner />
             <CameraSearchBar
               search={search}
@@ -158,10 +185,10 @@ export default function CameraPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 }
-                title={search ? 'Không tìm thấy camera phù hợp' : 'Chưa có camera nào'}
-                description="Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc để tìm thấy camera phù hợp"
+                title={search ? t('cameras.noCamerasFound') : t('cameras.noCamerasYet')}
+                description={t('cameras.noCamerasDescription')}
                 secondaryAction={search ? {
-                  label: 'Xem tất cả',
+                  label: t('cameras.viewAll'),
                   onClick: () => setSearch(''),
                   icon: (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,6 +209,7 @@ export default function CameraPage() {
                   status: c.isConnect ? 'active' : 'inactive',
                 }))}
                 onCameraClick={handleCameraClick}
+                onViewCamera={handleViewCamera}
               />
             )}
           </div>

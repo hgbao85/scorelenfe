@@ -7,8 +7,8 @@ import HeaderUser from '@/components/user/HeaderUser';
 import FooterButton from '@/components/user/FooterButton';
 import toast from 'react-hot-toast';
 import { userMatchService } from '@/lib/userMatchService';
-import RoleBadge from '@/components/ui/RoleBadge';
 import { setIdentity, setSession } from '@/lib/session';
+import { useI18n } from '@/lib/i18n/provider';
 
 function GuestJoinContent() {
   const [fullName, setFullName] = useState('');
@@ -33,6 +33,7 @@ function GuestJoinContent() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useI18n();
 
   useEffect(() => {
     const table = searchParams!.get('table');
@@ -65,12 +66,12 @@ function GuestJoinContent() {
 
   const handleVerifyMembership = async () => {
     if (!phoneNumber.trim()) {
-      toast.error('Vui lòng nhập số điện thoại.');
+      toast.error(t('userMatch.join.error.noPhone'));
       return;
     }
 
     if (!tableInfo?.clubId) {
-      setVerifyMemberMessage('Không thể xác định club. Vui lòng thử lại.');
+      setVerifyMemberMessage(t('userMatch.join.error.cannotDetermineClub'));
       return;
     }
 
@@ -84,38 +85,38 @@ function GuestJoinContent() {
       });
 
       if (!result.success) {
-        throw new Error(result.message || 'Xác thực thất bại');
+        throw new Error(result.message || t('userMatch.join.error.verificationFailed'));
       }
 
       if (!result.isMember) {
-        toast.error('Bạn chưa đăng ký hội viên');
+        toast.error(t('userMatch.join.error.notMember'));
         return;
       }
 
       if (!result.isBrandCompatible) {
-        toast.error(result.message || 'Bạn không phải là hội viên của thương hiệu này.');
+        toast.error(result.message || t('userMatch.join.error.notBrandCompatible'));
         return;
       }
 
       const responseData = result.data;
       if (!responseData) {
-        throw new Error('Không có thông tin membership');
+        throw new Error(t('userMatch.join.error.verificationFailed'));
       }
 
       if (responseData.status === 'inactive') {
-        toast.error('Tài khoản của bạn đang bị cấm');
+        toast.error(t('userMatch.join.error.accountBanned'));
         return;
       }
 
       setVerifiedMembershipId(responseData.membershipId);
       setFullName(responseData.fullName);
       setIsMember(true);
-      setVerifyMemberMessage('Xác thực thành công!');
-      toast.success(`Chào mừng ${responseData.fullName}!`);
+      setVerifyMemberMessage(t('userMatch.join.success.verificationSuccess'));
+      toast.success(t('userMatch.join.success.welcomeWithName').replace('{name}', responseData.fullName));
 
     } catch (e) {
       console.error('Error verifying membership:', e);
-      const errorMessage = (e as { message?: string })?.message || 'Xác thực thất bại';
+      const errorMessage = (e as { message?: string })?.message || t('userMatch.join.error.verificationFailed');
       setVerifyMemberStatus('error');
       setVerifyMemberMessage(errorMessage);
       toast.error(errorMessage);
@@ -126,7 +127,7 @@ function GuestJoinContent() {
 
   const handleJoinMatch = async () => {
     if (!fullName.trim()) {
-      toast.error('Vui lòng nhập họ và tên.');
+      toast.error(t('userMatch.join.error.noFullName'));
       return;
     }
 
@@ -138,23 +139,23 @@ function GuestJoinContent() {
           const joinResult = await userMatchService.joinMatch({
             matchCode: roomCode,
             teamIndex: selectedTeam,
-            joinerInfo: { 
+            joinerInfo: {
               guestName: fullName.trim(),
               membershipId: isMember ? verifiedMembershipId : undefined,
               membershipName: isMember ? fullName.trim() : undefined,
             },
           });
-          
+
           const joinData = joinResult as any;
-          
+
           let newSessionToken = '';
-          
+
           if (joinData?.success) {
             newSessionToken = joinData.userSessionToken || '';
-            
+
 
           }
-          
+
           if (!newSessionToken) {
             newSessionToken = sessionToken || '';
           }
@@ -171,15 +172,15 @@ function GuestJoinContent() {
               guestName: isMember ? undefined : fullName.trim(),
               fullName: fullName.trim(),
             });
-            
+
             setSession(matchId, {
               sessionToken: newSessionToken,
               role: 'participant'
             });
-            
+
           }
 
-          toast.success('Tham gia phòng thành công!');
+          toast.success(t('userMatch.join.success.joinRoomSuccess'));
 
           const params = new URLSearchParams({
             table: tableNumber || '??',
@@ -208,20 +209,22 @@ function GuestJoinContent() {
         isAiAssisted: false,
         teams: [
           {
-            teamName: 'Team A',
-            members: selectedTeam === 0 ? [{
+            teamName: t('userMatch.create.teamNames.teamA'),
+            members: selectedTeam === 0 ? (isMember ? [{
+              membershipId: verifiedMembershipId,
+              membershipName: fullName.trim(),
+            }] : [{
               guestName: fullName.trim(),
-              membershipId: isMember ? verifiedMembershipId : undefined,
-              membershipName: isMember ? fullName.trim() : undefined,
-            }] : [],
+            }]) : [],
           },
           {
-            teamName: 'Team B',
-            members: selectedTeam === 1 ? [{
+            teamName: t('userMatch.create.teamNames.teamB'),
+            members: selectedTeam === 1 ? (isMember ? [{
+              membershipId: verifiedMembershipId,
+              membershipName: fullName.trim(),
+            }] : [{
               guestName: fullName.trim(),
-              membershipId: isMember ? verifiedMembershipId : undefined,
-              membershipName: isMember ? fullName.trim() : undefined,
-            }] : [],
+            }]) : [],
           },
         ],
       };
@@ -252,15 +255,15 @@ function GuestJoinContent() {
           guestName: isMember ? undefined : fullName.trim(),
           fullName: fullName.trim(),
         });
-        
+
         setSession(newMatchId, {
           sessionToken: newSessionToken,
           role: 'participant'
         });
-        
+
       }
 
-      toast.success('Tạo phòng thành công!');
+      toast.success(t('userMatch.join.success.createRoomSuccess'));
 
       const params = new URLSearchParams({
         table: tableNumber || '??',
@@ -278,14 +281,14 @@ function GuestJoinContent() {
 
       router.push(`/user/match/lobby?${params.toString()}`);
     } catch {
-      toast.error('Bạn đã tham gia trận đấu này rồi.');
+      toast.error(t('userMatch.join.error.alreadyJoined'));
     } finally {
       setIsCreatingMatch(false);
       setShowTeamPopup(false);
     }
   };
 
-  if (loading) return <ScoreLensLoading text="Đang tải..." />;
+  if (loading) return <ScoreLensLoading text={t('userMatch.join.loading')} />;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-gray-100 pt-20">
@@ -294,10 +297,10 @@ function GuestJoinContent() {
       <main className="flex-1 flex flex-col px-4 py-8">
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-[#000000]">
-            {tableNumber || '...'} - {tableInfo?.category ? tableInfo.category.toUpperCase() : (tableId ? 'Đang tải...' : 'Pool 8 Ball')}
+            {tableNumber || '...'} - {tableInfo?.category ? tableInfo.category.toUpperCase() : (tableId ? t('userMatch.join.loading') : t('userMatch.join.pool8Ball'))}
           </h1>
           <p className="text-sm sm:text-base text-[#000000] font-medium">
-            Nhập tên để tham gia phòng {roomCode || '...'}
+            {t('userMatch.join.description')} {roomCode || '...'}
           </p>
         </div>
 
@@ -305,11 +308,11 @@ function GuestJoinContent() {
           <div className="w-full max-w-sm space-y-4 text-left">
             <div>
               <label className="block text-sm font-semibold text-[#000000] mb-1 text-center">
-                Họ và Tên
+                {t('userMatch.join.fullNameLabel')}
               </label>
               <input
                 type="text"
-                placeholder="Nhập họ và tên ..."
+                placeholder={t('userMatch.join.fullNamePlaceholder')}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="border border-[#000000] rounded-xl px-5 py-3 text-base w-full text-[#000000] text-center font-medium placeholder-[#000000]/60 focus:outline-none focus:border-[#8ADB10] hover:border-lime-400 transition-all duration-200"
@@ -318,12 +321,12 @@ function GuestJoinContent() {
 
             <div>
               <label className="block text-sm font-semibold text-[#000000] mb-1 text-center">
-                Số Điện Thoại
+                {t('userMatch.join.phoneLabel')}
               </label>
               <div className="space-y-2">
                 <input
                   type="text"
-                  placeholder="Nhập số điện thoại ..."
+                  placeholder={t('userMatch.join.phonePlaceholder')}
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="border border-[#000000] rounded-xl px-5 py-3 text-base w-full text-black text-center font-medium placeholder-[#000000]/60 focus:outline-none focus:border-[#8ADB10] hover:border-lime-400 transition-all duration-200"
@@ -334,7 +337,7 @@ function GuestJoinContent() {
                   disabled={verifyingMember}
                   className="w-full py-3 px-4 rounded-xl bg-[#8ADB10] hover:bg-lime-600 disabled:bg-gray-300 text-[#FFFFFF] font-semibold text-sm"
                 >
-                  {verifyingMember ? 'Đang xác thực...' : 'Xác thực'}
+                  {verifyingMember ? t('userMatch.join.verifying') : t('userMatch.join.verifyButton')}
                 </button>
               </div>
               {verifyMemberStatus !== 'idle' && (
@@ -348,7 +351,7 @@ function GuestJoinContent() {
             </div>
 
             <p className="text-sm text-[#FF0000] font-medium text-center">
-              * Nếu chưa có mã hội viên, hãy liên hệ nhân viên để đăng ký!
+              {t('userMatch.join.memberNote')}
             </p>
           </div>
         </div>
@@ -359,7 +362,7 @@ function GuestJoinContent() {
           onClick={() => setShowTeamPopup(true)}
           className="w-full bg-[#8ADB10] hover:bg-lime-600 text-[#FFFFFF] font-semibold py-3 rounded-xl text-base sm:text-lg transition"
         >
-          Tiếp tục
+          {t('userMatch.join.continue')}
         </button>
       </FooterButton>
 
@@ -367,31 +370,31 @@ function GuestJoinContent() {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-lg text-center">
             <h2 className="text-xl font-bold text-[#000000] mb-6">
-              Chọn đội để tham gia
+              {t('userMatch.join.teamSelection.title')}
             </h2>
 
             <div className="space-y-4 mb-6">
               <button
                 onClick={() => setSelectedTeam(0)}
                 className={`w-full p-4 rounded-xl border-2 transition-all ${selectedTeam === 0
-                    ? 'border-[#8ADB10] bg-lime-50 text-lime-700'
-                    : 'border-gray-200 hover:border-[#8ADB10]'
+                  ? 'border-[#8ADB10] bg-lime-50 text-lime-700'
+                  : 'border-gray-200 hover:border-[#8ADB10]'
                   }`}
               >
                 <div className="text-center">
-                  <div className="font-semibold text-[#000000]">Đội A</div>
+                  <div className="font-semibold text-[#000000]">{t('userMatch.join.teamSelection.teamA')}</div>
                 </div>
               </button>
 
               <button
                 onClick={() => setSelectedTeam(1)}
                 className={`w-full p-4 rounded-xl border-2 transition-all ${selectedTeam === 1
-                    ? 'border-[#8ADB10] bg-lime-50 text-lime-700'
-                    : 'border-gray-200 hover:border-[#8ADB10]'
+                  ? 'border-[#8ADB10] bg-lime-50 text-lime-700'
+                  : 'border-gray-200 hover:border-[#8ADB10]'
                   }`}
               >
                 <div className="text-center">
-                  <div className="font-semibold text-[#000000]">Đội B</div>
+                  <div className="font-semibold text-[#000000]">{t('userMatch.join.teamSelection.teamB')}</div>
                 </div>
               </button>
             </div>
@@ -401,14 +404,14 @@ function GuestJoinContent() {
                 onClick={() => setShowTeamPopup(false)}
                 className="w-full bg-[#FF0000] hover:bg-red-500 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base"
               >
-                Hủy
+                {t('userMatch.join.teamSelection.cancel')}
               </button>
               <button
                 onClick={handleJoinMatch}
                 disabled={isCreatingMatch}
                 className="w-full bg-[#8ADB10] hover:bg-lime-500 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base disabled:bg-gray-300"
               >
-                {isCreatingMatch ? 'Đang xử lý...' : 'Xác nhận'}
+                {isCreatingMatch ? t('userMatch.join.teamSelection.processing') : t('userMatch.join.teamSelection.confirm')}
               </button>
             </div>
           </div>
@@ -418,9 +421,14 @@ function GuestJoinContent() {
   );
 }
 
+function LoadingFallback() {
+  const { t } = useI18n();
+  return <ScoreLensLoading text={t('userMatch.join.loading')} />;
+}
+
 export default function GuestJoinPage() {
   return (
-    <Suspense fallback={<ScoreLensLoading text="Đang tải..." />}>
+    <Suspense fallback={<LoadingFallback />}>
       <GuestJoinContent />
     </Suspense>
   );

@@ -9,6 +9,7 @@ import { ScoreLensLoading } from '@/components/ui/ScoreLensLoading';
 import { CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import axios from '@/lib/axios';
+import { useI18n } from "@/lib/i18n/provider";
 
 interface BrandInfo {
   brandId: string;
@@ -27,13 +28,14 @@ interface Branch {
 }
 
 export default function CompleteProfilePage() {
+  const { t } = useI18n();
   const [step, setStep] = useState(1);
   const [brandInfo, setBrandInfo] = useState<BrandInfo | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = React.useState(true);
   const router = useRouter();
   const [countdown, setCountdown] = useState(5);
-  
+
   React.useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1200);
     return () => clearTimeout(timer);
@@ -43,11 +45,17 @@ export default function CompleteProfilePage() {
   useEffect(() => {
     if (step === 3) {
       setCountdown(5);
-   
+
       const interval = setInterval(() => {
-        setCountdown((prev) => prev - 1);
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
-   
+
       const timeout = setTimeout(() => {
         try {
           const token = localStorage.getItem('adminAccessToken');
@@ -68,19 +76,19 @@ export default function CompleteProfilePage() {
         } catch (error) {
           console.error('Error starting sendmail request:', error);
         }
-      
+
         router.push("/admin/pending");
       }, 5000);
-      
-   
+
+
       return () => {
         clearInterval(interval);
         clearTimeout(timeout);
       };
     }
   }, [step, router]);
-  
-  
+
+
 
   const handleBrandInfoSuccess = (data: BrandInfo) => {
     setBrandInfo(data);
@@ -102,39 +110,59 @@ export default function CompleteProfilePage() {
 
   return (
     <>
-      {loading && <ScoreLensLoading text="Đang tải..." />}
+      {loading && <ScoreLensLoading text={t('common.loading')} />}
       <div className="min-h-screen bg-white">
-        <h1 className="text-3xl md:text-4xl font-bold text-center pt-12 pb-8 text-black">
-          BỔ SUNG THÔNG TIN TÀI KHOẢN
-        </h1>
-        <RegisterSteps currentStep={step} />
+        <div className="px-4 sm:px-6 lg:px-8">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-center pt-8 sm:pt-12 pb-6 sm:pb-8 text-black">
+            {t('confirm.title')}
+          </h1>
+          <RegisterSteps currentStep={step} />
+        </div>
+
         {step === 1 && (
-          <BrandInfoForm
-            onSuccess={handleBrandInfoSuccess}
-            initialData={brandInfo}
-          />
+          <div className="px-4 sm:px-6 lg:px-8">
+            <BrandInfoForm
+              onSuccess={handleBrandInfoSuccess}
+              initialData={brandInfo}
+            />
+          </div>
         )}
+
         {step === 2 && (
-          <BranchInfoForm
-            onSuccess={handleBranchInfoSuccess}
-            onChange={handleBranchInfoChange}
-            brandInfo={brandInfo}
-            onBack={handleBackToStep1}
-            initialBranches={branches}
-          />
+          <div className="px-4 sm:px-6 lg:px-8">
+            <BranchInfoForm
+              onSuccess={handleBranchInfoSuccess}
+              onChange={handleBranchInfoChange}
+              brandInfo={brandInfo}
+              onBack={handleBackToStep1}
+              initialBranches={branches}
+            />
+          </div>
         )}
+
         {step === 3 && (
-          <div className="w-full max-w-lg mx-auto flex flex-col gap-6 items-center px-0 pb-8 animate-success-fade-in">
-            <h2 className="text-2xl md:text-3xl font-bold text-center text-black mt-8 mb-2">BẠN ĐÃ ĐĂNG KÝ THÀNH CÔNG</h2>
-            <p className="text-lg text-center text-gray-700 mb-2">Vui lòng chờ chúng tôi chấp nhận yêu cầu đăng ký của bạn!</p>
-            <div className="flex justify-center my-6">
+          <div className="w-full max-w-md sm:max-w-lg mx-auto flex flex-col gap-4 sm:gap-6 items-center px-4 sm:px-6 lg:px-8 pb-8 animate-success-fade-in">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center text-black mt-6 sm:mt-8 mb-2">
+              {t('confirm.registrationSuccess')}
+            </h2>
+            <p className="text-base sm:text-lg text-center text-gray-700 mb-2 px-4">
+              {t('confirm.waitForApproval')}
+            </p>
+            <div className="flex justify-center my-4 sm:my-6">
               <div className="animate-success-bounce">
-                <CheckCircle size={110} strokeWidth={2} className="text-lime-400" fill="none"/>
+                <CheckCircle
+                  size={80}
+                  className="sm:w-[110px] sm:h-[110px] text-lime-400"
+                  strokeWidth={2}
+                  fill="none"
+                />
               </div>
             </div>
-            <div className="text-2xl font-bold text-black text-center mb-2 animate-success-pop">Cảm ơn bạn đã đăng ký!</div>
-            <p className="text-sm text-gray-500 text-center">
-              Bạn sẽ được chuyển hướng tự động trong{" "}
+            <div className="text-xl sm:text-2xl font-bold text-black text-center mb-2 animate-success-pop">
+              {t('confirm.thankYou')}
+            </div>
+            <p className="text-xs sm:text-sm text-gray-500 text-center px-4">
+              {t('confirm.redirectMessage')}{" "}
               <AnimatePresence mode="wait">
                 <motion.span
                   key={countdown}
@@ -142,12 +170,12 @@ export default function CompleteProfilePage() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 1.5 }}
                   transition={{ duration: 0.4 }}
-                  className="font-bold text-lg text-lime-500 inline-block"
+                  className="font-bold text-base sm:text-lg text-lime-500 inline-block"
                 >
                   {countdown}
                 </motion.span>
               </AnimatePresence>{" "}
-              giây...
+              {t('confirm.seconds')}
             </p>
           </div>
         )}

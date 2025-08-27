@@ -10,7 +10,6 @@ import { userMatchService } from '@/lib/userMatchService';
 import { useWebSocket } from '@/lib/hooks/useWebSocket';
 import toast from 'react-hot-toast';
 import Feedback from '@/components/user/Feedback';
-import Image from 'next/image';
 
 function EndMatchPageContent() {
   const router = useRouter();
@@ -75,7 +74,7 @@ function EndMatchPageContent() {
   const [actualTableName, setActualTableName] = useState<string>(tableName);
   const [actualMatchCode, setActualMatchCode] = useState<string>(matchCode);
 
-  const winner = actualScoreA > actualScoreB ? 'Team A' : actualScoreB > actualScoreA ? 'Team B' : 'Hoà';
+  const winner = actualScoreA > actualScoreB ? 'Đội A' : actualScoreB > actualScoreA ? 'Đội B' : 'Hoà';
 
   useWebSocket({
     matchId: matchId || null,
@@ -182,14 +181,14 @@ function EndMatchPageContent() {
     setShowFeedback(true);
   };
 
-     const handleFeedbackSuccess = () => {
-     setShowFeedback(false);
-     toast.success('Cảm ơn bạn đã đánh giá!');
-     
-     setTimeout(() => {
-       router.push('/');
-     }, 1000);
-   };
+  const handleFeedbackSuccess = () => {
+    setShowFeedback(false);
+    toast.success('Cảm ơn bạn đã đánh giá!');
+
+    setTimeout(() => {
+      router.push('/');
+    }, 1000);
+  };
 
   if (loading) return <ScoreLensLoading text="Đang tải..." />;
 
@@ -203,7 +202,7 @@ function EndMatchPageContent() {
             {actualTableName.toUpperCase()} - {tableInfo?.category ? (tableInfo.category === 'pool-8' ? 'POOL 8' : ` ${tableInfo.category.toUpperCase()}`) : (matchInfo?.gameType === 'pool-8' ? 'POOL 8' : matchInfo?.gameType || 'Pool 8 Ball')}
           </h1>
           <p className="text-sm sm:text-base text-[#000000] font-medium">TRẬN ĐẤU ĐÃ KẾT THÚC</p>
-          
+
           {sessionToken && (
             <div className="mt-2">
               <span className="text-xs text-gray-500">Session: {sessionToken.substring(0, 8)}...</span>
@@ -233,7 +232,7 @@ function EndMatchPageContent() {
               <div className="flex items-center justify-between gap-4">
                 <div className="text-center flex flex-col items-center w-20 flex-shrink-0">
                   <div className="text-4xl font-bold mb-2">{actualScoreA}</div>
-                  <p className="text-sm font-semibold">Team A</p>
+                  <p className="text-sm font-semibold">Đội A</p>
                   <div className="min-h-[60px] mt-1 text-center space-y-1">
                     {actualTeamA.length > 0 ? (
                       actualTeamA.map((member, index) => (
@@ -254,7 +253,7 @@ function EndMatchPageContent() {
 
                 <div className="text-center flex flex-col items-center w-20 flex-shrink-0">
                   <div className="text-4xl font-bold mb-2">{actualScoreB}</div>
-                  <p className="text-sm font-semibold">Team B</p>
+                  <p className="text-sm font-semibold">Đội B</p>
                   <div className="min-h-[60px] mt-1 text-center space-y-1">
                     {actualTeamB.length > 0 ? (
                       actualTeamB.map((member, index) => (
@@ -325,16 +324,16 @@ function EndMatchPageContent() {
       <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 p-4 z-50">
         <div className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl mx-auto">
           <div className="flex gap-3">
-                         <Button
-               onClick={() => {
-                 router.push('/');
-               }}
-               variant="outline"
-               style={{ backgroundColor: '#FF0000' }}
-               className="flex-1 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base flex items-center justify-center hover:opacity-90"
-             >
-               Thoát
-             </Button>
+            <Button
+              onClick={() => {
+                router.push('/');
+              }}
+              variant="outline"
+              style={{ backgroundColor: '#FF0000' }}
+              className="flex-1 text-[#FFFFFF] font-semibold py-3 rounded-xl text-sm sm:text-base flex items-center justify-center hover:opacity-90"
+            >
+              Thoát
+            </Button>
             <Button
               onClick={handleRate}
               style={{ backgroundColor: '#8ADB10' }}

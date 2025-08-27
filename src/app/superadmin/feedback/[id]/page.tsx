@@ -6,11 +6,14 @@ import { HeaderSuperAdmin } from '@/components/shared/HeaderSuperAdmin';
 import { PageBanner } from '@/components/shared/PageBanner';
 import { getFeedbackDetail, updateFeedback } from '@/lib/saFeedbackService';
 import { useSuperAdminAuthGuard } from '@/lib/hooks/useSuperAdminAuthGuard';
+import { useI18n } from '@/lib/i18n/provider';
 import toast from 'react-hot-toast';
 import FeedbackDetailLayout from "@/components/shared/FeedbackDetailLayout";
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
+import { NoteWithToggle } from '@/components/shared/NoteWithToggle';
+import EmptyState from '@/components/ui/EmptyState';
 
 interface Feedback {
   feedbackId: string;
@@ -49,8 +52,10 @@ interface Feedback {
 
 export default function FeedbackDetailPage() {
   const router = useRouter();
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
   const { isChecking } = useSuperAdminAuthGuard();
+  const { t } = useI18n();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [status, setStatus] = useState<Feedback['status']>('adminP');
@@ -139,25 +144,23 @@ export default function FeedbackDetailPage() {
 
           setError(null);
         } else {
-          setError('Không tìm thấy phản hồi');
-          toast.error('Không tìm thấy phản hồi');
+          setError(t('superAdminFeedbackDetail.feedbackNotFound'));
         }
       } catch (error) {
         console.error('Error fetching feedback detail:', error);
-        setError('Không thể tải dữ liệu phản hồi');
-        toast.error('Không thể tải dữ liệu phản hồi');
+        setError(t('superAdminFeedbackDetail.cannotLoadFeedback'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [id, isEditMode]);
+  }, [id, isEditMode, t]);
 
   const statusOptions = [
-    { value: 'adminP', label: 'Chủ doanh nghiệp xử lý' },
-    { value: 'superadminP', label: 'Quản trị viên xử lý' },
-    { value: 'resolved', label: 'Đã xử lý' },
+    { value: 'adminP', label: t('superAdminFeedbackDetail.adminProcessing') },
+    { value: 'superadminP', label: t('superAdminFeedbackDetail.superAdminProcessing') },
+    { value: 'resolved', label: t('superAdminFeedbackDetail.resolved') },
   ];
 
   const getStatusColor = (status: string) => {
@@ -172,18 +175,18 @@ export default function FeedbackDetailPage() {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'resolved': return 'Đã xử lý';
-      case 'managerP': return 'Quản lý xử lý';
-      case 'adminP': return 'Chủ doanh nghiệp xử lý';
-      case 'superadminP': return 'Quản trị viên xử lý';
-      default: return 'Không xác định';
+      case 'resolved': return t('superAdminFeedbackDetail.statusResolved');
+      case 'managerP': return t('superAdminFeedbackDetail.statusManagerP');
+      case 'adminP': return t('superAdminFeedbackDetail.statusAdminP');
+      case 'superadminP': return t('superAdminFeedbackDetail.statusSuperadminP');
+      default: return t('superAdminFeedbackDetail.statusUnknown');
     }
   };
 
   const getCategoryText = (category: string) => {
     switch (category) {
-      case 'pool-8': return 'Pool 8';
-      case 'carom': return 'Carom';
+      case 'pool-8': return t('superAdminFeedbackDetail.pool8');
+      case 'carom': return t('superAdminFeedbackDetail.carom');
       default: return category;
     }
   };
@@ -191,15 +194,29 @@ export default function FeedbackDetailPage() {
   const handleSave = async () => {
     try {
       if (!id) return;
+
       await updateFeedback(id, {
         note: notes,
         status,
       });
-      toast.success('Cập nhật thành công');
+      toast.success(t('superAdminFeedbackDetail.updateSuccess'));
       setIsEditMode(false);
       setNotes('');
-    } catch {
-      toast.error('Cập nhật thất bại');
+    } catch (error: unknown) {
+      const err = error as {
+        response?: { data?: { message?: string; errors?: Record<string, string[]> } };
+      };
+
+      const message = err.response?.data?.message;
+      const errors = err.response?.data?.errors;
+
+      if (errors?.note && errors.note.length > 0) {
+        toast.error(errors.note[0]);
+      } else if (message) {
+        toast.error(message);
+      } else {
+        toast.error(t('superAdminFeedbackDetail.updateFailed'));
+      }
     }
   };
 
@@ -222,72 +239,96 @@ export default function FeedbackDetailPage() {
   };
 
   if (isChecking) {
-    return <div className="flex items-center justify-center min-h-screen">Đang kiểm tra...</div>;
+    return <div className="flex items-center justify-center min-h-screen">{t('superAdminFeedbackDetail.checking')}</div>;
   }
 
   if (loading) return (
-    <div className="py-8">
+    <div className="py-6 sm:py-8">
       <LoadingSkeleton type="card" lines={6} className="w-full max-w-2xl mx-auto" />
     </div>
   );
 
   if (error) return (
-    <div className="text-center py-20">
-      <h1 className="text-2xl font-bold text-gray-700 mb-4">{error}</h1>
-      <button
-        onClick={() => router.push('/superadmin/home?tab=feedback')}
-        className="w-40 bg-lime-400 hover:bg-lime-500 text-white font-bold py-2 rounded-lg transition text-lg"
-      >
-        Quay lại danh sách
-      </button>
+    <div className="flex flex-col bg-[#FFFFFF] items-center py-8 sm:py-10 px-4 min-h-screen w-full">
+      <EmptyState
+        icon={
+          <svg className="w-12 h-12 sm:w-14 sm:h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+        }
+        title={error}
+        description={t('superAdminFeedbackDetail.errorLoadingFeedback')}
+        primaryAction={{
+          label: t('superAdminFeedbackDetail.tryAgain'),
+          onClick: () => {
+            setError(null);
+            window.location.reload();
+          },
+          icon: (
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )
+        }}
+        secondaryAction={{
+          label: t('superAdminFeedbackDetail.backToList'),
+          onClick: () => router.push('/superadmin/home?tab=feedback'),
+          icon: (
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          )
+        }}
+        showAdditionalInfo={false}
+      />
     </div>
   );
 
-  if (!feedback) return <div className="p-4 text-center text-red-500">Không tìm thấy feedback</div>;
+  if (!feedback) return <div className="p-4 text-center text-red-500">{t('superAdminFeedbackDetail.feedbackNotFound')}</div>;
 
   return (
     <>
       <HeaderSuperAdmin />
-      <PageBanner title="PHẢN HỒI" />
-      <div className="flex flex-col items-center py-10 px-4 min-h-screen w-full">
+      <PageBanner title={t('superAdminFeedbackDetail.pageTitle')} />
+      <div className="flex flex-col bg-[#FFFFFF] items-center py-6 sm:py-8 lg:py-10 px-4 min-h-screen w-full">
         <div className="w-full max-w-none">
-          <FeedbackDetailLayout title="QUẢN LÝ PHẢN HỒI">
-            <div className="flex flex-col md:flex-row gap-8 w-full">
-              <div className="flex-1 space-y-6 order-1 md:order-none">
+          <FeedbackDetailLayout title={t('superAdminFeedbackDetail.managementTitle')}>
+            <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 w-full">
+              <div className="flex-1 space-y-4 sm:space-y-6 order-1 lg:order-none">
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Thương hiệu</label>
-                  <input className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black" value={feedback.clubInfo?.brandName || 'Không xác định'} disabled />
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.brandLabel')}</label>
+                  <input className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black" value={feedback.clubInfo?.brandName || t('superAdminFeedbackDetail.unknown')} disabled />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Chi nhánh</label>
-                  <input className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black" value={feedback.clubInfo?.clubName || feedback.clubId || ''} disabled />
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.branchLabel')}</label>
+                  <input className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black" value={feedback.clubInfo?.clubName || feedback.clubId || ''} disabled />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Bàn</label>
-                  <input className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black" value={feedback.tableInfo?.tableName || feedback.tableId || ''} disabled />
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.tableLabel')}</label>
+                  <input className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black" value={feedback.tableInfo?.tableName || feedback.tableId || ''} disabled />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Loại bàn</label>
-                  <input className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black" value={getCategoryText(feedback.tableInfo?.category || '')} disabled />
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.tableTypeLabel')}</label>
+                  <input className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black" value={getCategoryText(feedback.tableInfo?.category || '')} disabled />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Loại người tạo</label>
-                  <input className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black" value={feedback.createdBy?.type === 'guest' ? 'Khách' : 'Hội viên'} disabled />
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.creatorTypeLabel')}</label>
+                  <input className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black" value={feedback.createdBy?.type === 'guest' ? t('superAdminFeedbackDetail.guest') : t('superAdminFeedbackDetail.membership')} disabled />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Thời gian tạo</label>
-                  <input className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black" value={feedback.createdAt ? new Date(feedback.createdAt).toLocaleString('vi-VN') : ''} disabled />
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.createdAtLabel')}</label>
+                  <input className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black" value={feedback.createdAt ? new Date(feedback.createdAt).toLocaleString('vi-VN') : ''} disabled />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Thời gian cập nhật</label>
-                  <input className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black" value={feedback.updatedAt ? new Date(feedback.updatedAt).toLocaleString('vi-VN') : ''} disabled />
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.updatedAtLabel')}</label>
+                  <input className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black" value={feedback.updatedAt ? new Date(feedback.updatedAt).toLocaleString('vi-VN') : ''} disabled />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Trạng thái</label>
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.statusLabel')}</label>
                   {isEditMode ? (
                     <div className="relative w-full">
                       <select
-                        className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black outline-none appearance-none"
+                        className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black outline-none appearance-none"
                         value={status}
                         onChange={e => setStatus(e.target.value as Feedback['status'])}
                       >
@@ -314,27 +355,27 @@ export default function FeedbackDetailPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Nội dung phản hồi</label>
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.contentLabel')}</label>
                   <textarea
-                    className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black"
+                    className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black"
                     value={feedback.content}
                     disabled
                     rows={4}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-black">Ghi chú xử lý</label>
+                  <label className="block text-sm font-semibold mb-2 text-black">{t('superAdminFeedbackDetail.processingNoteLabel')}</label>
                   {isEditMode ? (
                     <textarea
-                      className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black"
+                      className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black"
                       value={notes}
                       onChange={e => setNotes(e.target.value)}
                       rows={3}
-                      placeholder="Nhập ghi chú xử lý..."
+                      placeholder={t('superAdminFeedbackDetail.editPlaceholder')}
                     />
                   ) : (
                     <textarea
-                      className="w-full bg-gray-100 rounded-lg px-4 py-2 text-black"
+                      className="w-full bg-gray-100 rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base text-black"
                       value={notes}
                       disabled
                       rows={3}
@@ -342,10 +383,10 @@ export default function FeedbackDetailPage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 space-y-6 order-2 md:order-none">
+              <div className="flex-1 space-y-4 sm:space-y-6 order-2 lg:order-none">
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-center text-black">Lịch sử xử lý</label>
-                  <div className="bg-gray-50 rounded-lg p-4 max-h-[925px] overflow-y-auto">
+                  <label className="block text-sm font-semibold mb-2 text-center text-black">{t('superAdminFeedbackDetail.processingHistoryLabel')}</label>
+                  <div className="bg-gray-50 rounded-lg p-3 sm:p-4 max-h-[600px] sm:max-h-[925px] overflow-y-auto">
                     {feedback.history && feedback.history.length > 0 ? (
                       <div className="space-y-3">
                         {feedback.history
@@ -353,10 +394,10 @@ export default function FeedbackDetailPage() {
                           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                           .slice(0, 15)
                           .map((item, index) => (
-                            <div key={index} className="border-l-4 border-lime-400 pl-4 py-2 bg-white rounded-r-lg">
-                              <div className="flex justify-between items-start mb-1">
+                            <div key={index} className="border-l-4 border-lime-400 pl-3 sm:pl-4 py-2 bg-white rounded-r-lg">
+                              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-0 mb-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-sm text-gray-800">{item.byName}</span>
+                                  <span className="font-semibold text-xs sm:text-sm text-gray-800">{item.byName}</span>
                                   <span className="text-xs bg-gray-200 px-2 py-1 rounded-full text-gray-600">{item.byRole}</span>
                                 </div>
                                 <span className="text-xs text-gray-500">
@@ -364,51 +405,49 @@ export default function FeedbackDetailPage() {
                                 </span>
                               </div>
                               {item.note && (
-                                <div className="text-sm text-gray-600">
-                                  <span className="font-medium">Ghi chú:</span> {item.note}
-                                </div>
+                                <NoteWithToggle note={item.note} />
                               )}
                             </div>
                           ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8">
+                      <div className="text-center py-6 sm:py-8">
                         <div className="text-gray-400 mb-2">
-                          <svg className="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
-                        <p className="text-gray-500 text-sm font-medium">Chưa có lịch sử xử lý</p>
-                        <p className="text-gray-400 text-xs mt-1">Lịch sử xử lý sẽ hiển thị khi có người cập nhật phản hồi</p>
+                        <p className="text-gray-500 text-xs sm:text-sm font-medium">{t('superAdminFeedbackDetail.noProcessingHistory')}</p>
+                        <p className="text-gray-400 text-xs mt-1">{t('superAdminFeedbackDetail.noProcessingHistoryDescription')}</p>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
             </div>
-            <div className="flex flex-col md:flex-row justify-center items-center gap-4 mt-8">
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-4 mt-6 sm:mt-8">
               <button
                 type="button"
-                className="w-40 border border-lime-400 text-lime-500 bg-white hover:bg-lime-50 font-bold py-2 rounded-lg transition text-lg"
+                className="w-full sm:w-40 border border-lime-400 text-lime-500 bg-white hover:bg-lime-50 font-bold py-2 sm:py-2.5 rounded-lg transition text-sm sm:text-base lg:text-lg order-2 sm:order-1"
                 onClick={handleCancel}
               >
-                {isEditMode ? 'Hủy' : 'Quay lại'}
+                {isEditMode ? t('superAdminFeedbackDetail.cancel') : t('superAdminFeedbackDetail.back')}
               </button>
               {isEditMode ? (
                 <button
                   type="button"
-                  className="w-40 bg-lime-400 hover:bg-lime-500 text-white font-bold py-2 rounded-lg transition text-lg"
+                  className="w-full sm:w-40 bg-lime-400 hover:bg-lime-500 text-white font-bold py-2 sm:py-2.5 rounded-lg transition text-sm sm:text-base lg:text-lg order-1 sm:order-2"
                   onClick={handleSave}
                 >
-                  Lưu
+                  {t('superAdminFeedbackDetail.save')}
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="w-40 bg-lime-400 hover:bg-lime-500 text-white font-bold py-2 rounded-lg transition text-lg"
+                  className="w-full sm:w-40 bg-lime-400 hover:bg-lime-500 text-white font-bold py-2 sm:py-2.5 rounded-lg transition text-sm sm:text-base lg:text-lg order-1 sm:order-2"
                   onClick={() => setIsEditMode(true)}
                 >
-                  Chỉnh sửa
+                  {t('superAdminFeedbackDetail.edit')}
                 </button>
               )}
             </div>

@@ -8,14 +8,14 @@ import { logoutSuperAdmin } from '@/lib/saService';
 import { ConfirmPopup } from '@/components/ui/ConfirmPopup';
 import { useSuperAdminNotifications } from '@/lib/hooks/useSuperAdminNotifications';
 import { NotificationItem } from '@/components/shared/NotificationItem';
+import { useI18n } from '@/lib/i18n/provider';
+import LanguageSelector from '@/components/shared/LanguageSelector';
 
 
 export function HeaderSuperAdmin() {
-    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const { t } = useI18n();
     const [notificationOpen, setNotificationOpen] = useState(false);
-    const [currentLanguage, setCurrentLanguage] = useState<'VI' | 'EN'>('VI');
     const [showLogout, setShowLogout] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
     const notificationRef = useRef<HTMLDivElement>(null);
 
     const {
@@ -27,18 +27,8 @@ export function HeaderSuperAdmin() {
         deleteNotification
     } = useSuperAdminNotifications();
 
-    const languages = [
-        { code: 'VI', name: 'Việt Nam', flag: '/images/vietNam.png' },
-        { code: 'EN', name: 'English', flag: '/images/english.png' }
-    ];
-
-    const currentLanguageData = languages.find(lang => lang.code === currentLanguage);
-
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setDropdownOpen(false);
-            }
             if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
                 setNotificationOpen(false);
             }
@@ -46,11 +36,6 @@ export function HeaderSuperAdmin() {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
-    const handleLanguageChange = (languageCode: 'VI' | 'EN') => {
-        setCurrentLanguage(languageCode);
-        setDropdownOpen(false);
-    };
 
     const handleLogout = async () => {
         try {
@@ -63,14 +48,32 @@ export function HeaderSuperAdmin() {
                 await logoutSuperAdmin(refreshToken);
             }
 
+            // Save language preference before clearing localStorage
+            const savedLanguage = localStorage.getItem('scorelens-language');
+
             localStorage.clear();
+
+            // Restore language preference
+            if (savedLanguage) {
+                localStorage.setItem('scorelens-language', savedLanguage);
+            }
+
             document.cookie.split(';').forEach(function (c) {
                 document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
             });
 
             window.location.replace('/superadmin/login');
         } catch {
+            // Save language preference before clearing localStorage
+            const savedLanguage = localStorage.getItem('scorelens-language');
+
             localStorage.clear();
+
+            // Restore language preference
+            if (savedLanguage) {
+                localStorage.setItem('scorelens-language', savedLanguage);
+            }
+
             document.cookie.split(';').forEach(function (c) {
                 document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
             });
@@ -84,98 +87,45 @@ export function HeaderSuperAdmin() {
 
     return (
         <>
-            <header className="w-full flex justify-between items-center py-4 px-8 bg-black">
+            <header className="w-full flex justify-between items-center py-5 px-4 sm:px-8 bg-black/60 backdrop-blur-md fixed top-0 left-0 right-0 z-50">
                 <div className="flex items-center gap-4">
                     <ScoreLensLogo href="/superadmin/home" />
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="hidden sm:block relative" ref={dropdownRef}>
-                        <div
-                            className="flex items-center gap-2 cursor-pointer hover:text-lime-400 transition-colors"
-                            onClick={() => setDropdownOpen(!dropdownOpen)}
-                        >
-                            <Image
-                                src={currentLanguageData?.flag || '/images/vietNam.png'}
-                                alt={`${currentLanguageData?.name} Flag`}
-                                width={30}
-                                height={20}
-                                className="rounded-sm"
-                            />
-                            <span className="text-lg font-medium text-[#FFFFFF]">{currentLanguage}</span>
-                            <Image
-                                src="/icon/chevron-down.svg"
-                                alt="Chevron Down"
-                                width={26}
-                                height={26}
-                                className={`transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : 'rotate-0'}`}
-                            />
-                        </div>
-
-                        {dropdownOpen && (
-                            <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[160px] z-50">
-                                {languages.map((language) => (
-                                    <div
-                                        key={language.code}
-                                        className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-50 transition-colors ${currentLanguage === language.code ? 'bg-lime-50 text-[#8ADB10]' : 'text-gray-700'}`}
-                                        onClick={() => handleLanguageChange(language.code as 'VI' | 'EN')}
-                                    >
-                                        <Image
-                                            src={language.flag}
-                                            alt={`${language.name} Flag`}
-                                            width={24}
-                                            height={18}
-                                            className="rounded-sm"
-                                        />
-                                        <span className="text-sm font-medium">{language.name}</span>
-                                        {currentLanguage === language.code && (
-                                            <Image
-                                                src="/icon/check-lime.svg"
-                                                alt="Check"
-                                                width={15}
-                                                height={15}
-                                                className="ml-auto"
-                                            />
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <LanguageSelector variant="dark" />
 
                     <div className="relative" ref={notificationRef}>
                         <motion.button
                             onClick={() => setNotificationOpen(prev => !prev)}
-                            className={`relative focus:outline-none p-3 rounded-full transition-all duration-300 ${
-                                notificationOpen 
-                                    ? 'bg-lime-500/20 border-2 border-lime-400 shadow-lg shadow-lime-500/25' 
-                                    : 'hover:bg-white/10 hover:shadow-md hover:scale-105 active:scale-95'
-                            }`}
+                            className={`relative focus:outline-none p-2.5 sm:p-3 rounded-full transition-all duration-300 ${notificationOpen
+                                ? 'bg-lime-500/20 border-2 border-lime-400 shadow-lg shadow-lime-500/25'
+                                : 'hover:bg-white/10 hover:shadow-md hover:scale-105 active:scale-95'
+                                }`}
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                         >
                             <motion.div
-                                animate={{ 
+                                animate={{
                                     rotate: notificationOpen ? 15 : 0,
-                                    scale: unreadCount > 0 ? [1, 1.1, 1] : 1 
+                                    scale: unreadCount > 0 ? [1, 1.1, 1] : 1
                                 }}
-                                transition={{ 
+                                transition={{
                                     duration: 0.3,
                                     scale: { repeat: unreadCount > 0 ? Infinity : 0, repeatDelay: 2 }
                                 }}
-                        >
-                            <Image
-                                src="/icon/bell.svg"
-                                alt="Notifications"
-                                width={22}
-                                height={22}
-                                    className={`transition-all duration-300 ${
-                                        notificationOpen 
-                                            ? 'invert brightness-0 contrast-200' 
-                                            : 'invert brightness-0 hover:brightness-75'
-                                    }`}
+                            >
+                                <Image
+                                    src="/icon/bell.svg"
+                                    alt={t('common.notifications')}
+                                    width={22}
+                                    height={22}
+                                    className={`transition-all duration-300 ${notificationOpen
+                                        ? 'invert brightness-0 contrast-200'
+                                        : 'invert brightness-0 hover:brightness-75'
+                                        }`}
                                 />
                             </motion.div>
-                            
+
                             <AnimatePresence>
                                 {unreadCount > 0 && (
                                     <motion.span
@@ -188,7 +138,7 @@ export function HeaderSuperAdmin() {
                                     </motion.span>
                                 )}
                             </AnimatePresence>
-                            
+
 
                         </motion.button>
 
@@ -199,28 +149,28 @@ export function HeaderSuperAdmin() {
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: -20, scale: 0.95 }}
                                     transition={{ duration: 0.3, ease: "easeOut" }}
-                                    className="absolute right-0 mt-3 w-96 bg-white shadow-2xl rounded-2xl overflow-hidden z-50 border border-gray-100"
+                                    className="absolute left-1/4 transform -translate-x-1/2 mt-3 w-80 sm:w-96 bg-white shadow-2xl rounded-2xl overflow-hidden z-50 border border-gray-100 max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-180px)]"
                                     style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
                                 >
-                                    <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-5 border-b border-gray-200">
+                                    <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-2.5 sm:p-5 border-b border-gray-200">
                                         <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-lime-100 rounded-lg">
+                                            <div className="flex items-center gap-2 sm:gap-3">
+                                                <div className="p-1.5 sm:p-2 bg-lime-100 rounded-lg">
                                                     <Image
                                                         src="/icon/bell.svg"
-                                                        alt="Notifications"
+                                                        alt={t('common.notifications')}
                                                         width={18}
                                                         height={18}
-                                                        className="brightness-0 saturate-100 filter hue-rotate-90"
+                                                        className="brightness-0 saturate-100 filter hue-rotate-90 w-4 h-4 sm:w-5 sm:h-5"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-lg font-bold text-gray-900">
-                                                        Thông báo
+                                                    <h3 className="text-base sm:text-lg font-bold text-gray-900">
+                                                        {t('common.notifications')}
                                                     </h3>
                                                     {unreadCount > 0 && (
-                                                        <p className="text-sm text-gray-600">
-                                                            {unreadCount} thông báo mới
+                                                        <p className="text-xs sm:text-sm text-gray-600">
+                                                            {unreadCount} {t('common.newNotifications')}
                                                         </p>
                                                     )}
                                                 </div>
@@ -228,17 +178,17 @@ export function HeaderSuperAdmin() {
                                             {unreadCount > 0 && (
                                                 <motion.button
                                                     onClick={markAllAsRead}
-                                                    className="text-xs bg-lime-500 hover:bg-lime-600 text-white px-3 py-1.5 rounded-full transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+                                                    className="text-xs bg-lime-500 hover:bg-lime-600 text-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-full transition-all duration-200 font-medium shadow-md hover:shadow-lg"
                                                     whileHover={{ scale: 1.05 }}
                                                     whileTap={{ scale: 0.95 }}
                                                 >
-                                                    Đánh dấu tất cả
+                                                    {t('common.markAllAsRead')}
                                                 </motion.button>
                                             )}
                                         </div>
                                     </div>
 
-                                    <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                                    <div className="max-h-[calc(100vh-280px)] sm:max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar">
                                         {loading ? (
                                             <div className="p-8 text-center">
                                                 <motion.div
@@ -246,7 +196,7 @@ export function HeaderSuperAdmin() {
                                                     animate={{ rotate: 360 }}
                                                     transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                                                 />
-                                                <p className="text-sm text-gray-500 mt-4 font-medium">Đang tải thông báo...</p>
+                                                <p className="text-sm text-gray-500 mt-4 font-medium">{t('common.loadingNotifications')}</p>
                                             </div>
                                         ) : notifications.length > 0 ? (
                                             <motion.div
@@ -272,25 +222,25 @@ export function HeaderSuperAdmin() {
                                                 ))}
                                             </motion.div>
                                         ) : (
-                                            <motion.div 
-                                                className="p-12 text-center"
+                                            <motion.div
+                                                className="p-6 sm:p-12 text-center"
                                                 initial={{ opacity: 0, y: 20 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ delay: 0.2 }}
                                             >
-                                                <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <div className="bg-gray-100 w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
                                                     <Image
                                                         src="/icon/empty.svg"
-                                                        alt="No notifications"
+                                                        alt={t('common.noNotifications')}
                                                         width={40}
                                                         height={40}
-                                                        className="opacity-60"
+                                                        className="opacity-60 w-7 h-7 sm:w-10 sm:h-10"
                                                     />
-                                        </div>
-                                                <p className="text-base font-medium text-gray-600 mb-2">Không có thông báo</p>
-                                                <p className="text-sm text-gray-400">Các thông báo mới sẽ xuất hiện tại đây</p>
+                                                </div>
+                                                <p className="text-sm sm:text-base font-medium text-gray-600 mb-2">{t('common.noNotifications')}</p>
+                                                <p className="text-xs sm:text-sm text-gray-400">{t('common.newNotificationsWillAppearHere')}</p>
                                             </motion.div>
-                                    )}
+                                        )}
                                     </div>
                                 </motion.div>
                             )}
@@ -299,20 +249,20 @@ export function HeaderSuperAdmin() {
 
                     <button
                         onClick={handleLogoutClick}
-                        className="bg-lime-500 hover:bg-lime-600 text-white font-semibold px-4 py-2 rounded transition"
+                        className="bg-lime-500 hover:bg-lime-600 text-white font-semibold px-3 sm:px-4 py-2.5 sm:py-2 rounded transition text-sm sm:text-base"
                     >
-                        Đăng xuất
+                        {t('common.logout')}
                     </button>
                 </div>
             </header>
 
             <ConfirmPopup
                 open={showLogout}
-                title="Bạn có chắc chắn muốn đăng xuất không?"
+                title={t('common.confirmLogout')}
                 onCancel={() => setShowLogout(false)}
                 onConfirm={handleLogout}
-                confirmText="Xác nhận"
-                cancelText="Hủy"
+                confirmText={t('common.confirm')}
+                cancelText={t('common.cancel')}
             >
                 <div className="flex flex-col items-center justify-center">
                     <svg className="w-16 h-16 text-black my-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

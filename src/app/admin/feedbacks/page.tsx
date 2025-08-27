@@ -11,6 +11,7 @@ import { adminFeedbackService } from '@/lib/adminFeedbackService';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
 import { ScoreLensLoading } from '@/components/ui/ScoreLensLoading';
+import { useI18n } from '@/lib/i18n/provider';
 
 interface Feedback {
   id: string;
@@ -24,6 +25,7 @@ interface Feedback {
 }
 
 export default function AdminFeedbacksPage() {
+  const { t } = useI18n();
   const { isChecking } = useAdminAuthGuard();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("adminP");
@@ -50,16 +52,16 @@ export default function AdminFeedbacksPage() {
           const tableInfo = obj.tableInfo as Record<string, unknown> | undefined;
           const clubInfo = obj.clubInfo as Record<string, unknown> | undefined;
 
-          let tableName = 'Không xác định';
+          let tableName = t('common.unknown');
           if (tableInfo?.name) {
             tableName = String(tableInfo.name);
           }
 
           return {
             id: String(obj.feedbackId || obj._id || ''),
-            branch: String(clubInfo?.clubName || 'Không xác định'),
+            branch: String(clubInfo?.clubName || t('common.unknown')),
             table: String(tableName),
-            time: String(obj.createdAt ? new Date(obj.createdAt as string).toLocaleString('vi-VN') : 'Không xác định'),
+            time: String(obj.createdAt ? new Date(obj.createdAt as string).toLocaleString('vi-VN') : t('common.unknown')),
             status: (obj.status as Feedback['status']) || 'adminP',
             feedback: String(obj.content || ''),
             notes: String(obj.note || ''),
@@ -76,8 +78,8 @@ export default function AdminFeedbacksPage() {
         setFeedbacks(sortedFeedbacks);
       } catch (error) {
         console.error('Error fetching data:', error);
-        setError('Không thể tải danh sách phản hồi');
-        toast.error('Không thể tải danh sách phản hồi');
+        setError(t('feedbacks.cannotLoadList'));
+        toast.error(t('feedbacks.cannotLoadList'));
       } finally {
         setLoading(false);
       }
@@ -126,17 +128,17 @@ export default function AdminFeedbacksPage() {
 
   return (
     <>
-      {loading && <ScoreLensLoading text="Đang tải..." />}
+      {loading && <ScoreLensLoading text={t('common.loading')} />}
       <div className="min-h-screen flex bg-[#18191A]">
         <Sidebar />
-        <main className="flex-1 bg-white min-h-screen">
-          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-8 py-8 transition-all duration-300">
+        <main className="flex-1 bg-white min-h-screen lg:ml-0 overflow-x-hidden">
+          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 transition-all duration-300">
             <HeaderAdminPage />
           </div>
-          <div className="px-10 pb-10">
-            <div className="w-full rounded-xl bg-lime-400 shadow-lg py-6 flex items-center justify-center mb-8">
-              <span className="text-2xl font-extrabold text-white tracking-widest flex items-center gap-3">
-                PHẢN HỒI
+          <div className="px-4 sm:px-6 lg:px-10 pb-10 pt-16 lg:pt-0 w-full">
+            <div className="w-full rounded-xl bg-lime-400 shadow-lg py-4 sm:py-6 flex items-center justify-center mb-6 sm:mb-8">
+              <span className="text-xl sm:text-2xl font-extrabold text-white tracking-widest flex items-center gap-2 sm:gap-3">
+                {t('feedbacks.title')}
               </span>
             </div>
 
@@ -149,7 +151,7 @@ export default function AdminFeedbacksPage() {
               setDateFilter={setDateFilter}
             />
             {loading ? (
-              <div className="py-8">
+              <div className="py-6 sm:py-8">
                 <LoadingSkeleton type="card" lines={6} className="w-full max-w-2xl mx-auto" />
               </div>
             ) : error ? (
@@ -161,10 +163,10 @@ export default function AdminFeedbacksPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 }
-                title={search || statusFilter !== 'adminP' || dateFilter ? 'Không tìm thấy phản hồi phù hợp' : 'Chưa có phản hồi nào'}
-                description="Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc để tìm thấy phản hồi phù hợp"
+                title={search || statusFilter !== 'adminP' || dateFilter ? t('feedbacks.noSearchResults') : t('feedbacks.noFeedbacks')}
+                description={t('feedbacks.tryDifferentFilters')}
                 secondaryAction={search || statusFilter !== 'adminP' || dateFilter ? {
-                  label: 'Xem tất cả',
+                  label: t('common.viewAll'),
                   onClick: () => {
                     setSearch('');
                     setStatusFilter('all');
@@ -185,11 +187,11 @@ export default function AdminFeedbacksPage() {
                 />
 
                 {totalPages > 1 && (
-                  <div className="mt-10 flex items-center justify-center gap-2">
+                  <div className="mt-8 sm:mt-10 flex items-center justify-center gap-1 sm:gap-2 overflow-x-auto px-4 sm:px-0">
                     <button
                       onClick={() => handlePageChange(currentPage - 1)}
                       disabled={currentPage === 1}
-                      className={`px-3 py-3 w-16 rounded-lg font-medium transition flex items-center justify-center ${currentPage === 1
+                      className={`px-2 sm:px-3 py-2 sm:py-3 w-12 sm:w-16 rounded-lg font-medium transition flex items-center justify-center touch-manipulation ${currentPage === 1
                         ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                         : 'bg-lime-400 hover:bg-lime-500 text-white'
                         }`}
@@ -199,7 +201,7 @@ export default function AdminFeedbacksPage() {
                         alt="Previous"
                         width={20}
                         height={20}
-                        className="w-5 h-5"
+                        className="w-4 h-4 sm:w-5 sm:h-5"
                       />
                     </button>
 
@@ -207,7 +209,7 @@ export default function AdminFeedbacksPage() {
                       <button
                         key={page}
                         onClick={() => handlePageChange(page)}
-                        className={`px-3 py-2 w-10 rounded-lg font-medium transition flex items-center justify-center ${currentPage === page
+                        className={`px-2 sm:px-3 py-2 w-8 sm:w-10 rounded-lg font-medium transition flex items-center justify-center touch-manipulation ${currentPage === page
                           ? 'bg-lime-500 text-white'
                           : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
                           }`}
@@ -219,7 +221,7 @@ export default function AdminFeedbacksPage() {
                     <button
                       onClick={() => handlePageChange(currentPage + 1)}
                       disabled={currentPage === totalPages}
-                      className={`px-3 py-3 w-16 rounded-lg font-medium transition flex items-center justify-center ${currentPage === totalPages
+                      className={`px-2 sm:px-3 py-2 sm:py-3 w-12 sm:w-16 rounded-lg font-medium transition flex items-center justify-center touch-manipulation ${currentPage === totalPages
                         ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                         : 'bg-lime-400 hover:bg-lime-500 text-white'
                         }`}
@@ -229,14 +231,14 @@ export default function AdminFeedbacksPage() {
                         alt="Next"
                         width={20}
                         height={20}
-                        className="w-5 h-5"
+                        className="w-4 h-4 sm:w-5 sm:h-5"
                       />
                     </button>
                   </div>
                 )}
 
-                <div className="mt-4 text-center text-gray-400 italic text-xs">
-                  Hiển thị {startIndex + 1}-{Math.min(endIndex, filteredFeedbacks.length)} trong tổng số {filteredFeedbacks.length} phản hồi
+                <div className="mt-4 text-center text-gray-400 italic text-xs sm:text-sm px-4 sm:px-0">
+                  {t('feedbacks.showingResults').replace('{start}', String(startIndex + 1)).replace('{end}', String(Math.min(endIndex, filteredFeedbacks.length))).replace('{total}', String(filteredFeedbacks.length))}
                 </div>
               </>
             )}

@@ -15,6 +15,7 @@ import { useManagerAuthGuard } from '@/lib/hooks/useManagerAuthGuard';
 import { managerTableService } from '@/lib/managerTableService';
 import { managerMemberService } from '@/lib/managerMemberService';
 import { managerMatchService } from '@/lib/managerMatchService';
+import { useI18n } from '@/lib/i18n/provider';
 
 import toast from 'react-hot-toast';
 
@@ -54,6 +55,7 @@ interface MembersData {
 }
 
 export default function ManagerDashboardPage() {
+  const { t } = useI18n();
   const { isChecking } = useManagerAuthGuard();
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
@@ -194,7 +196,7 @@ export default function ManagerDashboardPage() {
         });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-        toast.error('Không thể tải dữ liệu thống kê');
+        toast.error(t('dashboard.cannotLoadStats'));
       } finally {
         setLoadingStats(false);
         setLoadingTables(false);
@@ -233,9 +235,9 @@ export default function ManagerDashboardPage() {
       const minutes = Math.floor((elapsed % 3600) / 60);
 
       if (hours === 0) {
-        elapsedTime = `${minutes} phút`;
+        elapsedTime = `${minutes} ${t('dashboard.minutes')}`;
       } else {
-        elapsedTime = `${hours} giờ ${minutes} phút`;
+        elapsedTime = `${hours} ${hours === 1 ? t('dashboard.hour') : t('dashboard.hours')} ${minutes} ${minutes === 1 ? t('dashboard.minute') : t('dashboard.minutes')}`;
       }
     }
 
@@ -267,14 +269,14 @@ export default function ManagerDashboardPage() {
 
   return (
     <>
-      {(loadingStats || loadingTables) && <ScoreLensLoading text="Đang tải..." />}
-      <div className="flex min-h-screen bg-gray-50">
+      {(loadingStats || loadingTables) && <ScoreLensLoading text={t('dashboard.loading')} />}
+      <div className="min-h-screen flex bg-[#18191A]">
         <SidebarManager />
-        <main className="flex-1 bg-[#FFFFFF] min-h-screen">
-          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-8 py-8 transition-all duration-300">
+        <main className="flex-1 bg-white min-h-screen lg:ml-0">
+          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 transition-all duration-300">
             <HeaderManager />
           </div>
-          <div className="px-10 pb-10">
+          <div className="px-4 sm:px-6 lg:px-10 pb-10 pt-16 lg:pt-0">
             <div className="w-full mx-auto">
               {loadingStats ? (
                 <div className="">
@@ -288,7 +290,7 @@ export default function ManagerDashboardPage() {
                   members={dashboardStats.members}
                 />
               )}
-              <div className="bg-white rounded-lg p-6">
+              <div className="bg-white rounded-lg p-4 sm:p-6 lg:p-8">
                 <TableFilterBar
                   search={search}
                   onSearchChange={setSearch}
@@ -309,10 +311,10 @@ export default function ManagerDashboardPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 5v4m8-4v4M8 11h8M8 15h8" />
                       </svg>
                     }
-                    title={search ? 'Không tìm thấy bàn phù hợp' : 'Chưa có bàn nào'}
-                    description={'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc để tìm thấy bàn phù hợp'}
+                    title={search ? t('dashboard.noTablesFoundWithSearch') : t('dashboard.noTablesFound')}
+                    description={t('dashboard.tryChangingSearch')}
                     secondaryAction={search ? {
-                      label: 'Xem tất cả',
+                      label: t('dashboard.viewAll'),
                       onClick: () => {
                         setSearch('');
                         setType('');
@@ -342,8 +344,11 @@ export default function ManagerDashboardPage() {
                 )}
                 {filteredTables.length > 9 && (
                   <div className="flex justify-center mt-6">
-                    <ButtonViewMore onClick={handleXemThem}>
-                      {actionLoading ? <LoadingSpinner size="sm" /> : 'Xem thêm'}
+                    <ButtonViewMore
+                      onClick={handleXemThem}
+                      primaryText={t('dashboard.viewMore')}
+                    >
+                      {actionLoading ? <LoadingSpinner size="sm" /> : t('dashboard.viewMore')}
                     </ButtonViewMore>
                   </div>
                 )}

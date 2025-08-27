@@ -2,42 +2,45 @@ import React from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useI18n } from '@/lib/i18n/provider';
 
 interface LoginRolePopupProps {
   onClose: () => void;
 }
 
 export const LoginRolePopup: React.FC<LoginRolePopupProps> = ({ onClose }) => {
+  const { t } = useI18n();
+
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl p-12 max-w-lg w-full text-center"
+        className="bg-white rounded-2xl p-6 sm:p-8 lg:p-12 max-w-lg w-full text-center mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-          Bạn muốn đăng nhập với vai trò nào?
+        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
+          {t('auth.roleSelection.title')}
         </h2>
-        <div className="my-6">
+        <div className="my-4 sm:my-6">
           <Image
-            src="/images/logoScoreLensBlack.png" // Using black logo on white background
+            src="/images/logoScoreLensBlack.png"
             alt="Character"
             width={150}
             height={150}
-            className="mx-auto"
+            className="mx-auto w-24 sm:w-32 lg:w-[150px] h-auto"
           />
         </div>
-        <div className="flex justify-center gap-4">
-          <Link href="/admin/login" onClick={onClose}>
-            <Button className="bg-lime-500 text-gray-900 font-semibold hover:bg-lime-600 rounded-lg text-lg px-12 py-3 transition-transform hover:scale-105 min-w-[160px] flex justify-center">
-              Chủ doanh nghiệp
+        <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
+          <Link href="/admin/login" onClick={onClose} className="w-full sm:flex-1">
+            <Button className="bg-lime-500 text-gray-900 hover:bg-lime-600 rounded-lg sm:text-base lg:text-base py-2 sm:py-3 transition-transform hover:scale-105 w-full flex justify-center">
+              {t('auth.roleSelection.businessOwner')}
             </Button>
           </Link>
-          <Link href="/manager/login" onClick={onClose}>
-            <Button className="bg-lime-500 text-gray-900 font-semibold hover:bg-lime-600 rounded-lg text-lg px-16 py-3 transition-transform hover:scale-105 min-w-[160px] flex justify-center">
-              Quản lý
+          <Link href="/manager/login" onClick={onClose} className="w-full sm:flex-1">
+            <Button className="bg-lime-500 text-gray-900 hover:bg-lime-600 rounded-lg sm:text-base lg:text-base py-2 sm:py-3 transition-transform hover:scale-105 w-full flex justify-center">
+              {t('auth.roleSelection.manager')}
             </Button>
           </Link>
         </div>

@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { HeaderAdmin } from '@/components/shared/HeaderAdmin';
 import { CircleAlert } from 'lucide-react';
 import adminService from '@/lib/adminService';
+import { useI18n } from '@/lib/i18n/provider';
 
 export default function AdminRejectedPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [adminId, setAdminId] = useState<string | null>(null);
 
@@ -25,7 +27,7 @@ export default function AdminRejectedPage() {
         <div className="absolute top-48 left-48 w-96 h-96 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob-slow animation-delay-6000" style={{ backgroundColor: '#EF4444' }} />
       </div>
 
-      <div className="flex justify-center pt-16 px-4">
+      <div className="flex justify-center pt-24 sm:pt-28 px-4">
         <div className="bg-white backdrop-blur-xl rounded-3xl shadow-2xl ring-2 ring-red-400 transition-all p-10 max-w-md w-full text-center animate-fade-in-up">
           <div className="mb-6">
             <div
@@ -40,15 +42,15 @@ export default function AdminRejectedPage() {
             className="text-3xl font-extrabold mb-4 bg-gradient-to-r bg-clip-text text-transparent"
             style={{ backgroundImage: 'linear-gradient(to right, #EF4444, #EF4444)' }}
           >
-            Tài khoản bị từ chối
+            {t('auth.accountRejected.title')}
           </h1>
 
           <p className="text-gray-700 mb-8 leading-relaxed text-[16px]">
-            Vui lòng kiểm tra email hoặc{' '}
+            {t('auth.accountRejected.description')}{' '}
             <a href={`/admin/reform?${adminId}`} rel="noopener noreferrer" className="text-blue-500 hover:underline">
-              tại đây
+              {t('auth.accountRejected.here')}
             </a>
-            {' '}để biết thêm chi tiết.
+            {' '}{t('auth.accountRejected.forMoreDetails')}
           </p>
 
           <button
@@ -58,7 +60,7 @@ export default function AdminRejectedPage() {
             }}
             onClick={() => router.push('/admin/login')}
           >
-            Quay lại đăng nhập
+            {t('auth.accountRejected.backToLogin')}
           </button>
         </div>
       </div>

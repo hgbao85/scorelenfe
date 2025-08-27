@@ -9,6 +9,7 @@ import TableUsingView from '@/components/manager/TableUsingView';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { useManagerAuthGuard } from '@/lib/hooks/useManagerAuthGuard';
 import { useWebSocket } from '@/lib/hooks/useWebSocket';
+import { useDashboardWebSocket } from '@/lib/hooks/useDashboardWebSocket';
 import { managerTableService } from '@/lib/managerTableService';
 import { managerMemberService } from '@/lib/managerMemberService';
 import { managerMatchService } from '@/lib/managerMatchService';
@@ -16,7 +17,9 @@ import { MatchSummaryModal } from '@/components/manager/MatchSummaryModal';
 import { EditMatchModal } from '@/components/manager/EditMatchModal';
 import { EditScoreModal } from '@/components/manager/EditScoreModal';
 import { AISelectionModal } from '@/components/manager/AISelectionModal';
+import { managerCameraService } from '@/lib/managerCameraService';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n/provider';
 
 interface TableData {
   id: string;
@@ -63,9 +66,20 @@ interface MembersData {
   memberships?: unknown[];
 }
 
+interface Camera {
+  cameraId: string;
+  tableId: string;
+  IPAddress: string;
+  username: string;
+  password: string;
+  isConnect: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 
 export default function TableDetailPage() {
+  const { t } = useI18n();
   const { isChecking } = useManagerAuthGuard();
   const params = useParams();
   const router = useRouter();
@@ -87,13 +101,16 @@ export default function TableDetailPage() {
   const [showEditScoreModal, setShowEditScoreModal] = useState(false);
   const [showAISelectionModal, setShowAISelectionModal] = useState(false);
   const [pendingTeams, setPendingTeams] = useState<{
-    teamA: Array<{ guestName?: string; phoneNumber?: string }>;
-    teamB: Array<{ guestName?: string; phoneNumber?: string }>;
+    teamA: Array<{ guestName?: string; phoneNumber?: string; membershipId?: string; membershipName?: string }>;
+    teamB: Array<{ guestName?: string; phoneNumber?: string; membershipId?: string; membershipName?: string }>;
   } | null>(null);
   const [isAiAssisted, setIsAiAssisted] = useState<boolean>(false);
   const [matchData, setMatchData] = useState<MatchData | null>(null);
   const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
   const [matchStartTime, setMatchStartTime] = useState<Date | null>(null);
+
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [cameraLoading, setCameraLoading] = useState(false);
 
   const [dashboardStats, setDashboardStats] = useState({
     totalTables: 0,
@@ -128,6 +145,40 @@ export default function TableDetailPage() {
       console.error('Error refreshing dashboard stats:', error);
     } finally {
       setLoadingStats(false);
+    }
+  };
+
+  const fetchCamerasForTable = async () => {
+    try {
+      setCameraLoading(true);
+      const cameraData = await managerCameraService.getAllCameras();
+
+      let camerasArr: unknown[] = [];
+      if (Array.isArray(cameraData)) camerasArr = cameraData;
+      else if (cameraData && typeof cameraData === 'object' && Array.isArray((cameraData as { cameras?: unknown[] }).cameras)) camerasArr = (cameraData as { cameras: unknown[] }).cameras;
+      else if (cameraData && typeof cameraData === 'object' && Array.isArray((cameraData as { data?: unknown[] }).data)) camerasArr = (cameraData as { data: unknown[] }).data;
+
+      const mappedCameras: Camera[] = camerasArr.map(c => {
+        const obj = c as Partial<Camera>;
+        return {
+          cameraId: obj.cameraId || '',
+          tableId: obj.tableId || '',
+          IPAddress: obj.IPAddress || '',
+          username: obj.username || '',
+          password: obj.password || '',
+          isConnect: obj.isConnect ?? false,
+          createdAt: obj.createdAt,
+          updatedAt: obj.updatedAt,
+        };
+      });
+
+      const tableCameras = mappedCameras.filter(camera => camera.tableId === tableId);
+      setCameras(tableCameras);
+    } catch (error) {
+      console.error('Error fetching cameras:', error);
+      toast.error('Không thể tải danh sách camera');
+    } finally {
+      setCameraLoading(false);
     }
   };
 
@@ -237,11 +288,8 @@ export default function TableDetailPage() {
           router.push('/manager/dashboard');
         }
 
-        const membersData = await managerMemberService.getAllMembers();
-        const members = Array.isArray(membersData) ? membersData : (membersData as MembersData)?.memberships || [];
-
-        // Use refreshDashboardStats function instead of manual calculation
         await refreshDashboardStats();
+        await fetchCamerasForTable();
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Không thể tải dữ liệu');
@@ -267,11 +315,35 @@ export default function TableDetailPage() {
       setMatchStatus(match.status as 'pending' | 'ongoing' | 'completed');
       if (match.status === 'completed') {
         setElapsedTime('00:00:00');
-        // Refresh dashboard stats when match is completed
-        refreshDashboardStats();
       }
     }
   });
+
+  const { requestStats } = useDashboardWebSocket({
+    onStatsUpdate: (stats) => {
+      setDashboardStats(stats);
+      setLoadingStats(false);
+    },
+    enabled: !loading && !isChecking
+  });
+
+  useEffect(() => {
+    if (!loading && !isChecking && requestStats) {
+      requestStats();
+    }
+  }, [loading, isChecking, requestStats]);
+
+  useEffect(() => {
+    if (!loading && !isChecking) {
+      const statsInterval = setInterval(() => {
+        refreshDashboardStats();
+      }, 30000);
+
+      return () => {
+        clearInterval(statsInterval);
+      };
+    }
+  }, [loading, isChecking]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -295,23 +367,8 @@ export default function TableDetailPage() {
     };
   }, [matchStatus, matchStartTime]);
 
-  // Auto-refresh dashboard stats every 30 seconds to keep data fresh
-  useEffect(() => {
-    const statsInterval = setInterval(() => {
-      if (!loading && !isChecking) {
-        refreshDashboardStats();
-      }
-    }, 30000); // Refresh every 30 seconds
 
-    return () => {
-      if (statsInterval) {
-        clearInterval(statsInterval);
-      }
-    };
-  }, [loading, isChecking]);
-
-
-  const handleCreateMatch = async (teamA: Array<{ guestName?: string; phoneNumber?: string }>, teamB: Array<{ guestName?: string; phoneNumber?: string }>) => {
+  const handleCreateMatch = async (teamA: Array<{ guestName?: string; phoneNumber?: string; membershipId?: string; membershipName?: string }>, teamB: Array<{ guestName?: string; phoneNumber?: string; membershipId?: string; membershipName?: string }>) => {
     setPendingTeams({ teamA, teamB });
     setShowAISelectionModal(true);
   };
@@ -330,11 +387,11 @@ export default function TableDetailPage() {
         isAiAssisted,
         teams: [
           {
-            teamName: 'Team A',
+            teamName: 'Đội A',
             members: pendingTeams.teamA
           },
           {
-            teamName: 'Team B',
+            teamName: 'Đội B',
             members: pendingTeams.teamB
           }
         ]
@@ -376,7 +433,6 @@ export default function TableDetailPage() {
           setIsAiAssisted(responseData.isAiAssisted as boolean);
         }
 
-        // Refresh dashboard stats after creating match
         await refreshDashboardStats();
 
       } else {
@@ -403,6 +459,8 @@ export default function TableDetailPage() {
         toast.success('Bắt đầu trận đấu thành công!');
         setMatchStatus('ongoing');
         setMatchStartTime(new Date());
+
+        await refreshDashboardStats();
       } else {
         toast.error((res?.message as string) || 'Bắt đầu trận đấu thất bại!');
       }
@@ -444,7 +502,7 @@ export default function TableDetailPage() {
     }
   };
 
-  const handleUpdateTeams = async (updatedTeamA: Array<{ guestName?: string; phoneNumber?: string }>, updatedTeamB: Array<{ guestName?: string; phoneNumber?: string }>) => {
+  const handleUpdateTeams = async (updatedTeamA: Array<{ guestName?: string; phoneNumber?: string; membershipId?: string; membershipName?: string }>, updatedTeamB: Array<{ guestName?: string; phoneNumber?: string; membershipId?: string; membershipName?: string }>) => {
     try {
       if (!activeMatchId) {
         toast.error('Không xác định được trận đấu để cập nhật');
@@ -453,8 +511,8 @@ export default function TableDetailPage() {
 
       const buildKey = (m: { membershipId?: string; phoneNumber?: string; guestName?: string }) =>
         m.membershipId ? `mem:${m.membershipId}` :
-        m.phoneNumber ? `guest:${m.phoneNumber}` :
-        m.guestName ? `guest:${(m.guestName || '').trim().toLowerCase()}` : '';
+          m.phoneNumber ? `guest:${m.phoneNumber}` :
+            m.guestName ? `guest:${(m.guestName || '').trim().toLowerCase()}` : '';
 
       const validateNoDuplicate = (teams: Array<Array<{ membershipId?: string; phoneNumber?: string; guestName?: string }>>) => {
         const seen = new Set<string>();
@@ -471,7 +529,7 @@ export default function TableDetailPage() {
 
       const teamsPayloadPrecheck = [updatedTeamA, updatedTeamB];
       if (!validateNoDuplicate(teamsPayloadPrecheck)) {
-        toast.error('Bạn đã tham gia trận đấu này rồi.');
+        toast.error('Tên người chơi không được giống nhau.');
         return;
       }
 
@@ -509,11 +567,11 @@ export default function TableDetailPage() {
       toast.success('Cập nhật thành viên thành công!');
     } catch (error) {
       const err = error as Error & { status?: number };
-      if ((err as any)?.status === 409) {
+      if (err?.status === 409) {
         toast.error(err.message || 'Bạn đã tham gia trận đấu này rồi.');
       } else {
         console.error('Error updating team members:', error);
-        toast.error(err.message || 'Cập nhật thành viên thất bại!');
+        toast.error(err.message || t('managerMatches.updateMembersFailed'));
       }
     }
   };
@@ -521,31 +579,30 @@ export default function TableDetailPage() {
   const handleCancelMatch = async () => {
     try {
       if (!activeMatchId) {
-        toast.error('Không xác định được trận đấu để hủy');
+        toast.error(t('managerMatches.cannotIdentifyMatch'));
         return;
       }
 
       const res = await managerMatchService.deleteMatch(activeMatchId) as Record<string, unknown>;
       if (res?.success) {
-        toast.success('Hủy trận đấu thành công!');
+        toast.success(t('managerMatches.cancelMatchSuccess'));
 
-        // Refresh dashboard stats after canceling match
         await refreshDashboardStats();
 
         router.push('/manager/dashboard');
       } else {
-        toast.error((res?.message as string) || 'Hủy trận đấu thất bại!');
+        toast.error((res?.message as string) || t('managerMatches.cancelMatchFailed'));
       }
     } catch (error) {
       console.error('Error canceling match:', error);
-      toast.error('Hủy trận đấu thất bại!');
+      toast.error(t('managerMatches.cancelMatchFailed'));
     }
   };
 
   const handleEndMatch = async () => {
     try {
       if (!activeMatchId) {
-        toast.error('Không xác định được trận đấu để kết thúc');
+        toast.error(t('managerMatches.cannotIdentifyMatchToEnd'));
         return;
       }
 
@@ -555,20 +612,28 @@ export default function TableDetailPage() {
 
         const teams = (currentMatch?.teams as Array<Record<string, unknown>>) || [];
 
-        const scores = teams.map((team: Record<string, unknown>) => team.score as number);
-        const maxScore = Math.max(...scores);
-        const teamsWithMaxScore = teams.filter((team: Record<string, unknown>) => team.score === maxScore);
+        const aScore = typeof teamAScore === 'number' ? teamAScore : ((teams[0]?.score as number) || 0);
+        const bScore = typeof teamBScore === 'number' ? teamBScore : ((teams[1]?.score as number) || 0);
+        const hasUniqueWinner = aScore !== bScore && (aScore > 0 || bScore > 0);
 
-        const teamsWithWinner = teams.map((team: Record<string, unknown>) => ({
-          teamName: team.teamName as string || 'Team',
-          score: team.score as number || 0,
-          isWinner: team.score === maxScore && maxScore > 0 && teamsWithMaxScore.length === 1,
-          members: (team.members as Array<Record<string, unknown>>) || []
-        }));
+        const teamsWithWinner = [
+          {
+            teamName: (teams[0]?.teamName as string) || 'Đội A',
+            score: aScore,
+            isWinner: hasUniqueWinner && aScore > bScore,
+            members: (teams[0]?.members as Array<Record<string, unknown>>) || [],
+          },
+          {
+            teamName: (teams[1]?.teamName as string) || 'Đội B',
+            score: bScore,
+            isWinner: hasUniqueWinner && bScore > aScore,
+            members: (teams[1]?.members as Array<Record<string, unknown>>) || [],
+          },
+        ];
 
         setMatchData({
           matchId: currentMatch?.matchId as string,
-          tableName: table?.name || 'Unknown',
+          tableName: table?.name || t('managerMatches.unknown'),
           gameType: currentMatch?.gameType as string,
           startTime: currentMatch?.startTime ? new Date(currentMatch.startTime as string) : undefined,
           endTime: new Date(),
@@ -576,34 +641,33 @@ export default function TableDetailPage() {
         });
         setShowSummaryModal(true);
       } else {
-        toast.error('Không thể lấy thông tin trận đấu');
+        toast.error(t('managerMatches.cannotGetMatchInfo'));
       }
     } catch (error) {
       console.error('Error getting match data:', error);
-      toast.error('Không thể lấy thông tin trận đấu');
+      toast.error(t('managerMatches.cannotGetMatchInfo'));
     }
   };
 
   const handleConfirmEndMatch = async () => {
     try {
       if (!activeMatchId) {
-        toast.error('Không xác định được trận đấu để kết thúc');
+        toast.error(t('managerMatches.cannotIdentifyMatchToEnd'));
         return;
       }
       const res = (await managerMatchService.endMatch(activeMatchId)) as Record<string, unknown>;
       if (res?.success) {
-        toast.success('Kết thúc trận đấu thành công!');
+        toast.success(t('managerMatches.endMatchSuccess'));
 
-        // Refresh dashboard stats after ending match
         await refreshDashboardStats();
 
         router.push('/manager/dashboard');
       } else {
-        toast.error((res?.message as string) || 'Kết thúc trận đấu thất bại!');
+        toast.error((res?.message as string) || t('managerMatches.endMatchFailed'));
       }
     } catch (error) {
       console.error('Error ending match:', error);
-      toast.error('Kết thúc trận đấu thất bại!');
+      toast.error(t('managerMatches.endMatchFailed'));
     }
   };
 
@@ -613,16 +677,16 @@ export default function TableDetailPage() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <SidebarManager />
-        <main className="flex-1 bg-[#FFFFFF] min-h-screen">
-          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-8 py-8 transition-all duration-300">
+        <main className="flex-1 bg-[#FFFFFF] min-h-screen lg:ml-0">
+          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 transition-all duration-300">
             <HeaderManager />
           </div>
-          <div className="p-10">
+          <div className="px-4 sm:px-6 lg:px-10 pb-10 pt-16 lg:pt-0">
             <div className="w-full mx-auto">
               <div className="my-6">
                 <LoadingSkeleton type="card" />
               </div>
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="py-8">
                   <LoadingSkeleton type="card" />
                 </div>
@@ -638,15 +702,15 @@ export default function TableDetailPage() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <SidebarManager />
-        <main className="flex-1 bg-[#FFFFFF] min-h-screen">
-          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-8 py-8 transition-all duration-300">
+        <main className="flex-1 bg-[#FFFFFF] min-h-screen lg:ml-0">
+          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 transition-all duration-300">
             <HeaderManager />
           </div>
-          <div className="p-10">
+          <div className="px-4 sm:px-6 lg:px-10 pb-10 pt-16 lg:pt-0">
             <div className="w-full mx-auto">
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="py-8 text-center text-gray-400">
-                  <div>Không tìm thấy bàn</div>
+                  <div>{t('managerMatches.tableNotFound')}</div>
                 </div>
               </div>
             </div>
@@ -660,11 +724,11 @@ export default function TableDetailPage() {
     <>
       <div className="flex min-h-screen bg-gray-50">
         <SidebarManager />
-        <main className="flex-1 bg-[#FFFFFF] min-h-screen">
-          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-8 py-8 transition-all duration-300">
+        <main className="flex-1 bg-[#FFFFFF] min-h-screen lg:ml-0">
+          <div className="sticky top-0 z-10 bg-[#FFFFFF] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 transition-all duration-300">
             <HeaderManager />
           </div>
-          <div className="px-10 pb-10">
+          <div className="px-4 sm:px-6 lg:px-10 pb-10 pt-16 lg:pt-0">
             <div className="w-full mx-auto">
               {loadingStats ? (
                 <div className="my-6">
@@ -678,7 +742,7 @@ export default function TableDetailPage() {
                   members={dashboardStats.members}
                 />
               )}
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 {tableStatus === 'available' || isEditing ? (
                   <TableAvailableView
                     table={{
@@ -691,6 +755,7 @@ export default function TableDetailPage() {
                     isEditing={isEditing}
                     onBack={() => setIsEditing(false)}
                     elapsedTime={elapsedTime}
+                    activeMatchId={activeMatchId}
                     {...(isEditing ? { teamA, teamB } : {})}
                   />
                 ) : (
@@ -713,6 +778,10 @@ export default function TableDetailPage() {
                     matchStatus={matchStatus}
                     elapsedTime={elapsedTime}
                     isAiAssisted={isAiAssisted}
+                    matchId={activeMatchId || undefined}
+                    onScoresUpdated={(a, b) => { setTeamAScore(a); setTeamBScore(b); }}
+                    cameras={cameras}
+                    cameraLoading={cameraLoading}
                   />
                 )}
               </div>
