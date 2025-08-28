@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/provider';
 import axios from '@/lib/axios';
 import { managerTableService } from '@/lib/managerTableService';
+import { managerMatchService } from '@/lib/managerMatchService';
 
 interface ProcessVideoResponse {
   success: boolean;
@@ -59,8 +60,22 @@ interface ApiResponse<T> {
   recordings?: T[];
 }
 
+interface MatchRecordingsResponse {
+  success: boolean;
+  recordings?: RecordingData[];
+}
+
+interface MatchData {
+  success: boolean;
+  match?: {
+    startedAt: string;
+    [key: string]: any;
+  };
+}
+
 interface VideoAIProps {
   onVideoProcessed?: (result: ProcessVideoResponse) => void;
+  onClose?: () => void;
   className?: string;
   analysisType: 'pool8' | 'carom';
   tableId?: string;
@@ -68,7 +83,7 @@ interface VideoAIProps {
   matchId?: string;
 }
 
-export default function VideoAI({ onVideoProcessed, className = '', analysisType, tableId, cameraId, matchId }: VideoAIProps) {
+export default function VideoAI({ onVideoProcessed, onClose, className = '', analysisType, tableId, cameraId, matchId }: VideoAIProps) {
   const { t } = useI18n();
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -77,11 +92,15 @@ export default function VideoAI({ onVideoProcessed, className = '', analysisType
   const [isDragOver, setIsDragOver] = useState(false);
 
   const [recordedClips, setRecordedClips] = useState<RecordedClip[]>([]);
+
+
   const [loadingClips, setLoadingClips] = useState(false);
   const [selectedClip, setSelectedClip] = useState<RecordedClip | null>(null);
   const [showClipsList, setShowClipsList] = useState(false);
   const [cameras, setCameras] = useState<CameraData[]>([]);
   const [tables, setTables] = useState<TableData[]>([]);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [nextRefreshTime, setNextRefreshTime] = useState<Date>(new Date(Date.now() + 20000));
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -95,13 +114,6 @@ export default function VideoAI({ onVideoProcessed, className = '', analysisType
 
       const transformedTables: TableData[] = tablesArray.map((table: TableData) => {
         const tableType = table.category || table.type || '';
-        console.log('Table data:', {
-          id: table.tableId || table.id,
-          name: table.name,
-          category: table.category,
-          type: table.type,
-          finalType: tableType
-        });
         return {
           id: table.tableId || table.id || '',
           tableId: table.tableId,
@@ -137,11 +149,178 @@ export default function VideoAI({ onVideoProcessed, className = '', analysisType
     return [];
   };
 
-  const fetchRecordedClips = async () => {
+  const fetchRecordedClips = useCallback(async () => {
     try {
       setLoadingClips(true);
+      setLastRefreshTime(new Date());
+      setNextRefreshTime(new Date(Date.now() + 20000));
 
       const allTables = await fetchTables();
+
+      if (matchId) {
+        try {
+          const data = await managerMatchService.getMatchRecordings(matchId, cameraId) as MatchRecordingsResponse;
+
+          if (data.success && data.recordings && data.recordings.length > 0) {
+            const clips: RecordedClip[] = data.recordings.map((recording: unknown) => {
+              const rec = recording as {
+                jobId: string;
+                fileName?: string;
+                size?: number;
+                createdAt: string;
+                filePath?: string;
+                modifiedAt?: string;
+                cameraId?: string;
+                tableId?: string;
+              };
+              const tableInfo = allTables.find(table => table.id === rec.tableId || table.tableId === rec.tableId);
+              const tableName = tableInfo ?
+                (tableInfo.type ? `${tableInfo.name} (${tableInfo.type})` : tableInfo.name) :
+                `Bàn ${rec.tableId || tableId}`;
+              return {
+                id: rec.jobId,
+                name: rec.fileName || `Recording_${rec.jobId}`,
+                url: `/manager/camera/${rec.cameraId}/recordings/${rec.jobId}/stream`,
+                size: rec.size || 0,
+                duration: 0,
+                createdAt: rec.createdAt,
+                tableId: rec.tableId,
+                tableName: tableName,
+                jobId: rec.jobId,
+                fileName: rec.fileName,
+                filePath: rec.filePath,
+                modifiedAt: rec.modifiedAt
+              };
+            });
+            setRecordedClips(clips);
+            return;
+          } else {
+            try {
+              const matchData = await managerMatchService.getMatchById(matchId) as MatchData;
+
+              const match = (matchData as any).data || matchData.match;
+
+              if (matchData.success && (match?.startedAt || match?.createdAt || match?.startTime)) {
+                const startTime = match?.startedAt || match?.createdAt || match?.startTime;
+                const matchStartTime = new Date(startTime);
+
+                const tableCameras = await fetchCamerasForTable();
+                const allRecordings: RecordedClip[] = [];
+
+                for (const camera of tableCameras) {
+                  try {
+                    const response = await axios.get(`/manager/camera/${camera.cameraId}/recordings`);
+                    const data = response.data as ApiResponse<RecordingData>;
+
+                    if (data.success && data.recordings) {
+                      const clips: RecordedClip[] = data.recordings
+                        .filter((recording: RecordingData) => {
+                          const recordingTime = new Date(recording.createdAt);
+                          const isAfterMatchStart = recordingTime >= matchStartTime;
+                          return isAfterMatchStart;
+                        })
+                        .map((recording: RecordingData) => {
+                          const tableInfo = allTables.find(table => table.id === camera.tableId || table.tableId === camera.tableId);
+                          const tableName = tableInfo ?
+                            (tableInfo.type ? `${tableInfo.name} (${tableInfo.type})` : tableInfo.name) :
+                            `Bàn ${camera.tableId}`;
+
+                          return {
+                            id: `${camera.cameraId}_${recording.jobId}`,
+                            name: recording.fileName || `Recording_${recording.jobId}`,
+                            url: `/manager/camera/${camera.cameraId}/recordings/${recording.jobId}/stream`,
+                            size: recording.size || 0,
+                            duration: 0,
+                            createdAt: recording.createdAt,
+                            tableId: camera.tableId,
+                            tableName: tableName,
+                            jobId: recording.jobId,
+                            fileName: recording.fileName,
+                            filePath: recording.filePath,
+                            modifiedAt: recording.modifiedAt
+                          };
+                        });
+                      allRecordings.push(...clips);
+                    }
+                  } catch (error) {
+                    console.error(`Error fetching recordings for camera ${camera.cameraId}:`, error);
+                  }
+                }
+
+                allRecordings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                setRecordedClips(allRecordings);
+                return;
+              }
+            } catch (matchError) {
+              console.error('Error fetching match data for filtering:', matchError);
+              toast.error('Không thể tải danh sách video của trận đấu');
+            }
+          }
+        } catch (error) {
+          console.error('Match recordings API error:', error);
+          try {
+            const matchData = await managerMatchService.getMatchById(matchId) as MatchData;
+
+            const match = (matchData as any).data || matchData.match;
+
+            if (matchData.success && (match?.startedAt || match?.createdAt || match?.startTime)) {
+              const startTime = match?.startedAt || match?.createdAt || match?.startTime;
+              const matchStartTime = new Date(startTime);
+
+
+              const tableCameras = await fetchCamerasForTable();
+              const allRecordings: RecordedClip[] = [];
+
+              for (const camera of tableCameras) {
+                try {
+                  const response = await axios.get(`/manager/camera/${camera.cameraId}/recordings`);
+                  const data = response.data as ApiResponse<RecordingData>;
+
+                  if (data.success && data.recordings) {
+                    const clips: RecordedClip[] = data.recordings
+                      .filter((recording: RecordingData) => {
+                        const recordingTime = new Date(recording.createdAt);
+                        const isAfterMatchStart = recordingTime >= matchStartTime;
+                        return isAfterMatchStart;
+                      })
+                      .map((recording: RecordingData) => {
+                        const tableInfo = allTables.find(table => table.id === camera.tableId || table.tableId === camera.tableId);
+                        const tableName = tableInfo ?
+                          (tableInfo.type ? `${tableInfo.name} (${tableInfo.type})` : tableInfo.name) :
+                          `Bàn ${camera.tableId}`;
+
+                        return {
+                          id: `${camera.cameraId}_${recording.jobId}`,
+                          name: recording.fileName || `Recording_${recording.jobId}`,
+                          url: `/manager/camera/${camera.cameraId}/recordings/${recording.jobId}/stream`,
+                          size: recording.size || 0,
+                          duration: 0,
+                          createdAt: recording.createdAt,
+                          tableId: camera.tableId,
+                          tableName: tableName,
+                          jobId: recording.jobId,
+                          fileName: recording.fileName,
+                          filePath: recording.filePath,
+                          modifiedAt: recording.modifiedAt
+                        };
+                      });
+                    allRecordings.push(...clips);
+                  }
+                } catch (error) {
+                  console.error(`Error fetching recordings for camera ${camera.cameraId}:`, error);
+                }
+              }
+
+              allRecordings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+              setRecordedClips(allRecordings);
+              return;
+            }
+          } catch (matchError) {
+            console.error('Error fetching match data for filtering:', matchError);
+            toast.error('Không thể tải danh sách video của trận đấu');
+          }
+        }
+      }
 
       if (cameraId) {
         try {
@@ -236,11 +415,34 @@ export default function VideoAI({ onVideoProcessed, className = '', analysisType
     } finally {
       setLoadingClips(false);
     }
-  };
+  }, [tableId, cameraId, matchId]);
 
   useEffect(() => {
     fetchRecordedClips();
-  }, [tableId, cameraId, matchId]);
+  }, [fetchRecordedClips]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchRecordedClips();
+      setLastRefreshTime(new Date());
+      setNextRefreshTime(new Date(Date.now() + 20000));
+    }, 20000);
+
+    return () => clearInterval(interval);
+  }, [fetchRecordedClips]);
+
+  useEffect(() => {
+    const countdownInterval = setInterval(() => {
+      const now = new Date();
+      const timeLeft = Math.max(0, Math.ceil((nextRefreshTime.getTime() - now.getTime()) / 1000));
+
+      if (timeLeft === 0) {
+        setNextRefreshTime(new Date(Date.now() + 20000));
+      }
+    }, 1000);
+
+    return () => clearInterval(countdownInterval);
+  }, [nextRefreshTime]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -323,22 +525,50 @@ export default function VideoAI({ onVideoProcessed, className = '', analysisType
       if (selectedClip) {
         toast.success(t('shared.videoAI.analyzingClip').replace('{name}', selectedClip.name));
 
-        const response = await axios.post('http://localhost:5000/process_video', {
-          clipId: selectedClip.id,
-          cameraId: selectedClip.tableId,
-          analysis_type: analysisType,
-          filePath: selectedClip.filePath
+        const formData = new FormData();
+        formData.append('analysis_type', analysisType);
+        if (selectedClip.filePath) {
+          try {
+            const videoUrl = `http://localhost:8000/api${selectedClip.url}`;
+            const response = await fetch(videoUrl);
+            
+            if (!response.ok) {
+              throw new Error('Failed to fetch video file');
+            }
+            
+            const videoBlob = await response.blob();
+            const fileName = selectedClip.fileName || 'video.mp4';
+            const videoFile = new File([videoBlob], fileName, {
+              type: 'video/mp4',
+              lastModified: new Date(selectedClip.createdAt).getTime()
+            });
+            
+            formData.append('video', videoFile);
+          } catch (error) {
+            console.error('Error fetching video file:', error);
+            toast.error('Không thể tải file video từ server');
+            return;
+          }
+        }
+
+        const res = await fetch('http://localhost:5000/process_video', {
+          method: 'POST',
+          body: formData
         });
 
-        const data = response.data as ProcessVideoResponse;
+        if (!res.ok) {
+          throw new Error(t('shared.videoAI.errorSendingVideo'));
+        }
+
+        const data = await res.json();
         setProcessResult(data);
 
         if (onVideoProcessed) {
-          onVideoProcessed(data);
+          onVideoProcessed(data as ProcessVideoResponse);
           toast.success(t('shared.videoAI.aiResultSent'));
         }
 
-        if (data.success) {
+        if (data?.success) {
           toast.success(t('shared.videoAI.processingScore'));
         } else {
           toast.error(t('shared.videoAI.videoAnalysisError'));
@@ -503,17 +733,21 @@ export default function VideoAI({ onVideoProcessed, className = '', analysisType
 
   return (
     <div className={`bg-white rounded-lg shadow p-4 sm:p-6 ${className}`}>
-      <h4 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 text-center text-gray-800">
-        {t('shared.videoAI.title')}
-      </h4>
-
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h5 className="text-base font-semibold text-gray-700">
-            {t('shared.videoAI.recordedClips')} ({recordedClips.length})
-            {tableId && <span className="text-sm text-gray-500 ml-2">{t('shared.videoAI.tableInfo').replace('{tableId}', tableId)}</span>}
-            {cameraId && <span className="text-sm text-gray-500 ml-2">{t('shared.videoAI.cameraInfo').replace('{cameraId}', cameraId)}</span>}
-          </h5>
+          <div className="flex items-center gap-3">
+            <h5 className="text-base font-semibold text-gray-700">
+              {t('shared.videoAI.recordedClips')} ({recordedClips.length})
+              {tableId && !matchId && <span className="text-sm text-gray-500 ml-2">{t('shared.videoAI.tableInfo').replace('{tableId}', tableId)}</span>}
+              {cameraId && !matchId && <span className="text-sm text-gray-500 ml-2">{t('shared.videoAI.cameraInfo').replace('{cameraId}', cameraId)}</span>}
+            </h5>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="text-gray-400">
+                {t('shared.videoAI.lastUpdate')}: {lastRefreshTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          </div>
           <div className="flex gap-2">
             <Button
               onClick={fetchRecordedClips}
@@ -826,6 +1060,17 @@ export default function VideoAI({ onVideoProcessed, className = '', analysisType
         onChange={handleFileChange}
         className="hidden"
       />
+
+      {onClose && (
+        <div className="mt-6 flex justify-end">
+          <Button
+            onClick={onClose}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+          >
+            {t('common.close')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
